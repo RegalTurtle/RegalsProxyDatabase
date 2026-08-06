@@ -477,6 +477,12 @@ button:disabled {
   padding: 0.75rem;
 }
 
+.upload-box.dragging {
+  border-style: solid;
+  background: var(--purple-100);
+  box-shadow: 0 0 0 2px rgba(143, 99, 184, 0.2);
+}
+
 @media (min-width: 640px) {
   .card-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));

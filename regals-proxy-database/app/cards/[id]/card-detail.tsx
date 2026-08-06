@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { DragEvent, FormEvent, useCallback, useEffect, useState } from "react";
 
 type ScryfallCard = {
   id: string;
@@ -123,6 +123,7 @@ export default function CardDetail({ cardId }: { cardId: string }) {
     imageUrl: "",
   });
   const [file, setFile] = useState<File | null>(null);
+  const [isDraggingUpload, setIsDraggingUpload] = useState(false);
 
   const loadCard = useCallback(async () => {
     setStatus("Loading card from Scryfall...");
@@ -263,6 +264,21 @@ export default function CardDetail({ cardId }: { cardId: string }) {
     }
   }
 
+  function chooseDroppedFile(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setIsDraggingUpload(false);
+
+    const droppedFile = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith("image/"));
+
+    if (!droppedFile) {
+      setStatus("Drop an image file to upload.");
+      return;
+    }
+
+    setFile(droppedFile);
+    setStatus("");
+  }
+
   return (
     <main className="min-h-screen">
       <div className="scryfall-shell min-h-screen">
@@ -362,8 +378,28 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                     onChange={(event) => setForm((current) => ({ ...current, creator: event.target.value }))}
                     placeholder="Creator"
                   />
-                  <label className="upload-box">
-                    <span>{file ? file.name : "Choose proxy image for R2"}</span>
+                  <label
+                    className={isDraggingUpload ? "upload-box dragging" : "upload-box"}
+                    onDragEnter={(event) => {
+                      event.preventDefault();
+                      setIsDraggingUpload(true);
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "copy";
+                      setIsDraggingUpload(true);
+                    }}
+                    onDragLeave={(event) => {
+                      event.preventDefault();
+                      if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                        return;
+                      }
+
+                      setIsDraggingUpload(false);
+                    }}
+                    onDrop={chooseDroppedFile}
+                  >
+                    <span>{file ? file.name : "Choose or drop proxy image for R2"}</span>
                     <input
                       className="sr-only"
                       type="file"
