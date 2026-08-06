@@ -33,7 +33,29 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const collection = await getProxyCollection();
+    const recentCards = Number(url.searchParams.get("recentCards") ?? 0);
     const cardIds = url.searchParams.get("cardIds");
+
+    if (recentCards > 0) {
+      const data = await collection
+        .aggregate([
+          { $sort: { createdAt: -1 } },
+          {
+            $group: {
+              _id: "$baseCardId",
+              baseCardId: { $first: "$baseCardId" },
+              baseCardName: { $first: "$baseCardName" },
+              latestProxyAt: { $first: "$createdAt" },
+            },
+          },
+          { $sort: { latestProxyAt: -1 } },
+          { $limit: Math.min(recentCards, 100) },
+          { $project: { _id: 0, baseCardId: 1, baseCardName: 1, latestProxyAt: 1 } },
+        ])
+        .toArray();
+
+      return Response.json({ data });
+    }
 
     if (cardIds) {
       const ids = cardIds

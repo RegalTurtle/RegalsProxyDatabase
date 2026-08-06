@@ -48,6 +48,12 @@ type SearchResponse = {
   warnings?: string[];
 };
 
+type RecentProxyCard = {
+  baseCardId: string;
+  baseCardName: string;
+  latestProxyAt: string;
+};
+
 const DEFAULT_SCRYFALL_FILTER = "in:paper legal:edh";
 
 function cardImage(card: ScryfallCard, size: "small" | "normal" | "large" = "normal") {
@@ -70,11 +76,16 @@ export default function ProxyArchive() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showOnlyWithProxies, setShowOnlyWithProxies] = useState(false);
   const [useDefaultFilter, setUseDefaultFilter] = useState(true);
+  const [isShowingRecent, setIsShowingRecent] = useState(true);
 
   const visibleCards = useMemo(() => {
     const withFilter = showOnlyWithProxies
       ? cards.filter((card) => (proxyCounts[card.id] ?? 0) > 0)
       : cards;
+
+    if (isShowingRecent) {
+      return withFilter;
+    }
 
     return [...withFilter].sort((a, b) => {
       if (sort === "cmc") {
@@ -91,7 +102,7 @@ export default function ProxyArchive() {
 
       return a.name.localeCompare(b.name);
     });
-  }, [cards, proxyCounts, showOnlyWithProxies, sort]);
+  }, [cards, isShowingRecent, proxyCounts, showOnlyWithProxies, sort]);
 
   useEffect(() => {
     if (!cards.length) {
@@ -130,14 +141,59 @@ export default function ProxyArchive() {
     return () => controller.abort();
   }, [cards]);
 
+  const loadRecentCards = useCallback(async () => {
+    setIsSearching(true);
+    setIsShowingRecent(true);
+    setStatus("Loading recent proxy cards...");
+
+    try {
+      const response = await fetch("/api/proxies?recentCards=20");
+      const payload = (await response.json()) as {
+        data?: RecentProxyCard[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not load recent proxy cards.");
+      }
+
+      const recentCards = payload.data ?? [];
+      const hydratedCards = await Promise.all(
+        recentCards.map(async (proxyCard) => {
+          const cardResponse = await fetch(`/api/scryfall/cards/${proxyCard.baseCardId}`);
+          const cardPayload = (await cardResponse.json()) as ScryfallCard & { error?: string };
+
+          if (!cardResponse.ok) {
+            throw new Error(cardPayload.error ?? `Could not load ${proxyCard.baseCardName}.`);
+          }
+
+          return cardPayload;
+        }),
+      );
+
+      setCards(hydratedCards);
+      setStatus(
+        hydratedCards.length
+          ? `Showing the ${hydratedCards.length} most recent card${hydratedCards.length === 1 ? "" : "s"} with proxies.`
+          : "No proxies have been added yet. Search Scryfall to add your first one.",
+      );
+    } catch (error) {
+      setCards([]);
+      setStatus(error instanceof Error ? error.message : "Could not load recent proxy cards.");
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
   const runSearch = useCallback(async (searchQuery: string, shouldUseDefaultFilter: boolean) => {
     const trimmed = searchQuery.trim();
 
     if (!trimmed) {
-      setStatus("Enter any Scryfall query, like `o:draw commander:esper`.");
+      await loadRecentCards();
       return;
     }
 
+    setIsShowingRecent(false);
     const scryfallQuery = shouldUseDefaultFilter ? `${trimmed} ${DEFAULT_SCRYFALL_FILTER}` : trimmed;
 
     setIsSearching(true);
@@ -169,11 +225,16 @@ export default function ProxyArchive() {
     } finally {
       setIsSearching(false);
     }
-  }, []);
+  }, [loadRecentCards]);
 
   function searchCards() {
     return runSearch(query, useDefaultFilter);
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadRecentCards();
+  }, [loadRecentCards]);
 
   return (
     <main className="min-h-screen">
@@ -234,7 +295,9 @@ export default function ProxyArchive() {
                   onClick={() => {
                     const nextValue = !useDefaultFilter;
                     setUseDefaultFilter(nextValue);
-                    void runSearch(query, nextValue);
+                    if (query.trim()) {
+                      void runSearch(query, nextValue);
+                    }
                   }}
                 >
                   Paper EDH
