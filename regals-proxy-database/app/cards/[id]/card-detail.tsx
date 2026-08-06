@@ -285,36 +285,38 @@ export default function CardDetail({ cardId }: { cardId: string }) {
 
           {card ? (
             <div className="card-page-layout">
-              <div className="card-art-column">
-                <img src={cardImage(card, "large")} alt={card.name} className="detail-card-image" />
-              </div>
-
-              <div className="detail-panel card-info-panel">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h1 className="detail-title">{card.name}</h1>
-                    <p className="mt-1 text-sm opacity-75">{card.type_line}</p>
-                  </div>
-                  <div className="flex gap-1">
-                    {colorPips(card).map((color) => (
-                      <span key={color} className="mana-pip">
-                        {color}
-                      </span>
-                    ))}
-                  </div>
+              <div className="card-main-row">
+                <div className="card-art-column">
+                  <img src={cardImage(card, "large")} alt={card.name} className="detail-card-image" />
                 </div>
 
-                <div className="mt-5 space-y-4">
-                  <p className="oracle-text">{oracleText(card)}</p>
-                  <div className="card-facts">
-                    <span>Set: {card.set_name}</span>
-                    <span>No. {card.collector_number}</span>
-                    <span>MV {card.cmc}</span>
-                    <span>{card.prices?.usd ? `$${card.prices.usd}` : "No price"}</span>
+                <div className="detail-panel card-info-panel">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h1 className="detail-title">{card.name}</h1>
+                      <p className="mt-1 text-sm opacity-75">{card.type_line}</p>
+                    </div>
+                    <div className="flex gap-1">
+                      {colorPips(card).map((color) => (
+                        <span key={color} className="mana-pip">
+                          {color}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <a className="secondary-button inline-flex" href={card.scryfall_uri} target="_blank">
-                    Open Scryfall
-                  </a>
+
+                  <div className="mt-5 space-y-4">
+                    <p className="oracle-text">{oracleText(card)}</p>
+                    <div className="card-facts">
+                      <span>Set: {card.set_name}</span>
+                      <span>No. {card.collector_number}</span>
+                      <span>MV {card.cmc}</span>
+                      <span>{card.prices?.usd ? `$${card.prices.usd}` : "No price"}</span>
+                    </div>
+                    <a className="secondary-button inline-flex" href={card.scryfall_uri} target="_blank">
+                      Open Scryfall
+                    </a>
+                  </div>
                 </div>
               </div>
 
@@ -323,7 +325,7 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                   <h2 className="section-title">Proxies ({proxies.length})</h2>
                 </div>
 
-                <div className="grid gap-4">
+                <div className="proxy-strip-row">
                   {proxies.map((proxy) => (
                     <button
                       key={proxy.id}
@@ -353,7 +355,7 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                   </div>
                 )}
 
-                <form className="mt-5 grid gap-3" onSubmit={addProxy}>
+                <form className="proxy-add-form" onSubmit={addProxy}>
                   <input
                     className="field"
                     value={form.creator}
