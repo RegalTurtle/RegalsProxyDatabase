@@ -256,6 +256,11 @@ button:disabled {
     0 7px 16px rgba(36, 31, 42, 0.22);
 }
 
+.proxy-missing-image {
+  filter: grayscale(1);
+  opacity: 0.58;
+}
+
 .card-tile.selected .card-image {
   outline: 3px solid rgba(123, 87, 159, 0.72);
   outline-offset: 3px;

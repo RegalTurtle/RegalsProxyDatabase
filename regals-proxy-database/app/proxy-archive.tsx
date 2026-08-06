@@ -54,6 +54,8 @@ type RecentProxyCard = {
   latestProxyAt: string;
 };
 
+type LatestProxyByCard = Record<string, { imageUrl?: string; createdAt?: string }>;
+
 const DEFAULT_SCRYFALL_FILTER = "in:paper legal:edh";
 
 function cardImage(card: ScryfallCard, size: "small" | "normal" | "large" = "normal") {
@@ -71,12 +73,14 @@ export default function ProxyArchive() {
   const [sort, setSort] = useState("name");
   const [cards, setCards] = useState<ScryfallCard[]>([]);
   const [proxyCounts, setProxyCounts] = useState<Record<string, number>>({});
+  const [latestProxies, setLatestProxies] = useState<LatestProxyByCard>({});
   const [status, setStatus] = useState("Search Scryfall, then choose a card to add proxy art.");
   const [isSearching, setIsSearching] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showOnlyWithProxies, setShowOnlyWithProxies] = useState(false);
   const [useDefaultFilter, setUseDefaultFilter] = useState(true);
   const [isShowingRecent, setIsShowingRecent] = useState(true);
+  const [imageSource, setImageSource] = useState<"original" | "proxy">("original");
 
   const visibleCards = useMemo(() => {
     const withFilter = showOnlyWithProxies
@@ -119,6 +123,7 @@ export default function ProxyArchive() {
         });
         const payload = (await response.json()) as {
           counts?: Record<string, number>;
+          latestProxies?: LatestProxyByCard;
           error?: string;
         };
 
@@ -127,12 +132,14 @@ export default function ProxyArchive() {
         }
 
         setProxyCounts(payload.counts ?? {});
+        setLatestProxies(payload.latestProxies ?? {});
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
         }
 
         setProxyCounts({});
+        setLatestProxies({});
       }
     }
 
@@ -302,6 +309,15 @@ export default function ProxyArchive() {
                 >
                   Paper EDH
                 </button>
+                {(["original", "proxy"] as const).map((source) => (
+                  <button
+                    key={source}
+                    className={imageSource === source ? "toggle active" : "toggle"}
+                    onClick={() => setImageSource(source)}
+                  >
+                    {source === "original" ? "Original" : "Proxy"}
+                  </button>
+                ))}
                 <span className="toolbar-copy">{visibleCards.length} shown</span>
               </div>
               <div className="flex items-center gap-2">
@@ -328,7 +344,9 @@ export default function ProxyArchive() {
             >
               {visibleCards.map((card) => {
                 const count = proxyCounts[card.id] ?? 0;
-                const image = cardImage(card, "normal");
+                const proxyImage = latestProxies[card.id]?.imageUrl;
+                const image = imageSource === "proxy" && proxyImage ? proxyImage : cardImage(card, "normal");
+                const isMissingProxyImage = imageSource === "proxy" && !proxyImage;
 
                 if (viewMode === "list") {
                   return (
@@ -337,7 +355,11 @@ export default function ProxyArchive() {
                       className="list-card"
                       href={`/cards/${card.id}`}
                     >
-                      <img src={image} alt="" className="h-16 w-11 rounded object-cover" />
+                      <img
+                        src={image}
+                        alt=""
+                        className={`h-16 w-11 rounded object-cover ${isMissingProxyImage ? "proxy-missing-image" : ""}`}
+                      />
                       <span className="min-w-0 flex-1 text-left">
                         <span className="block truncate font-semibold">{card.name}</span>
                         <span className="block truncate text-sm opacity-75">{card.type_line}</span>
@@ -353,7 +375,12 @@ export default function ProxyArchive() {
                     className="card-tile"
                     href={`/cards/${card.id}`}
                   >
-                    <img src={image} alt={card.name} className="card-image" loading="lazy" />
+                    <img
+                      src={image}
+                      alt={card.name}
+                      className={`card-image ${isMissingProxyImage ? "proxy-missing-image" : ""}`}
+                      loading="lazy"
+                    />
                     <span className="proxy-strip">{count ? `${count} proxy` : "add proxy"}</span>
                   </Link>
                 );

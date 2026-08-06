@@ -65,7 +65,15 @@ export async function GET(request: Request) {
       const counts = await collection
         .aggregate([
           { $match: { baseCardId: { $in: ids } } },
-          { $group: { _id: "$baseCardId", count: { $sum: 1 } } },
+          { $sort: { createdAt: -1 } },
+          {
+            $group: {
+              _id: "$baseCardId",
+              count: { $sum: 1 },
+              latestImageUrl: { $first: "$imageUrl" },
+              latestProxyAt: { $first: "$createdAt" },
+            },
+          },
         ])
         .toArray();
 
@@ -74,6 +82,12 @@ export async function GET(request: Request) {
           counts.map((item) => {
             const row = item as { _id: string; count: number };
             return [row._id, row.count];
+          }),
+        ),
+        latestProxies: Object.fromEntries(
+          counts.map((item) => {
+            const row = item as { _id: string; latestImageUrl?: string; latestProxyAt?: string };
+            return [row._id, { imageUrl: row.latestImageUrl, createdAt: row.latestProxyAt }];
           }),
         ),
       });
