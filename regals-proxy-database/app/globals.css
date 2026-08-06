@@ -266,20 +266,6 @@ button:disabled {
   outline-offset: 3px;
 }
 
-.proxy-strip {
-  position: absolute;
-  right: 0.48rem;
-  bottom: 0.45rem;
-  left: 0.48rem;
-  border-radius: 3px;
-  background: rgba(47, 40, 62, 0.88);
-  color: #ffffff;
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 0.28rem;
-  text-align: center;
-}
-
 .list-card {
   display: flex;
   min-height: 4.8rem;

@@ -381,7 +381,6 @@ export default function ProxyArchive() {
                       className={`card-image ${isMissingProxyImage ? "proxy-missing-image" : ""}`}
                       loading="lazy"
                     />
-                    <span className="proxy-strip">{count ? `${count} proxy` : "add proxy"}</span>
                   </Link>
                 );
               })}
