@@ -291,6 +291,9 @@ export default function CardDetail({ cardId }: { cardId: string }) {
             <Link className="nav-link" href="/">
               Search
             </Link>
+            <Link className="nav-link" href="/universes-beyond">
+              Universes Beyond
+            </Link>
           </div>
         </header>
 

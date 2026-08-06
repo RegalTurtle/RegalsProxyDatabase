@@ -254,6 +254,9 @@ export default function ProxyArchive() {
                 <span>Regal&apos;s Proxy Database</span>
               </Link>
               <div className="flex flex-wrap items-center gap-3 text-sm">
+                <Link href="/universes-beyond" className="nav-link">
+                  Universes Beyond
+                </Link>
                 <a href="https://scryfall.com/docs/syntax" className="nav-link">
                   Syntax
                 </a>

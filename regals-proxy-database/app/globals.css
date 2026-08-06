@@ -469,11 +469,57 @@ button:disabled {
   box-shadow: 0 0 0 2px rgba(143, 99, 184, 0.2);
 }
 
+.ub-page-heading {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.ub-set-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.ub-set-button {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid #d9d1e5;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #2f2a39;
+  padding: 0.75rem;
+  text-align: left;
+  box-shadow: 0 1px 2px rgba(35, 29, 43, 0.06);
+}
+
+.ub-set-button:hover,
+.ub-set-button.active {
+  border-color: var(--purple-500);
+  box-shadow: 0 0 0 2px rgba(143, 99, 184, 0.14);
+}
+
+.ub-set-button.active {
+  background: #fbf9fd;
+}
+
+.ub-set-name {
+  font-weight: 800;
+}
+
+.ub-set-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 @media (min-width: 640px) {
   .card-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .ub-set-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (min-width: 1024px) {
@@ -499,6 +545,10 @@ button:disabled {
   .proxy-add-form {
     grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.4fr) minmax(220px, 1.4fr) auto;
     align-items: center;
+  }
+
+  .ub-set-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
