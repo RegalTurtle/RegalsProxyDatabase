@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 type UbSet = {
   code: string;
   name: string;
-  cardCount: number;
+  cardCount?: number;
   releasedAt: string;
 };
 
@@ -153,7 +153,7 @@ export default function UniversesBeyond() {
               >
                 <span className="ub-set-name">{set.name}</span>
                 <span className="ub-set-meta">
-                  {set.code.toUpperCase()} · {set.cardCount} cards · {set.releasedAt || "Unknown date"}
+                  {set.code.toUpperCase()} · {set.releasedAt || "Unknown date"}
                 </span>
               </button>
             ))}

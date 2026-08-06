@@ -1,86 +1,45 @@
 export const runtime = "nodejs";
 
-type ScryfallCard = {
-  id: string;
-  name: string;
-  set: string;
-  set_name: string;
-  released_at?: string;
-};
-
-type ScryfallList = {
-  data?: ScryfallCard[];
-  has_more?: boolean;
-  next_page?: string;
-  error?: string;
-};
-
 type UbSet = {
   code: string;
   name: string;
-  cardCount: number;
   releasedAt: string;
 };
 
-async function fetchAllUniversesBeyondPrints() {
-  const cards: ScryfallCard[] = [];
-  let url =
-    "https://api.scryfall.com/cards/search?q=is%3Aub+in%3Apaper&unique=prints&order=released&dir=desc";
-
-  for (let page = 0; page < 30 && url; page += 1) {
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json;q=0.9,*/*;q=0.8",
-        "User-Agent": "RegalsProxyDatabase/0.1 personal proxy archive",
-      },
-    });
-    const payload = (await response.json()) as ScryfallList;
-
-    if (!response.ok) {
-      throw new Error(payload.error ?? "Could not load Universes Beyond sets.");
-    }
-
-    cards.push(...(payload.data ?? []));
-    url = payload.has_more && payload.next_page ? payload.next_page : "";
-  }
-
-  return cards;
-}
+const UNIVERSes_BEYOND_SETS: UbSet[] = [
+  { code: "tla", name: "Avatar: The Last Airbender", releasedAt: "2025-11-21" },
+  { code: "tle", name: "Avatar: The Last Airbender: Eternal-legal", releasedAt: "2025-11-21" },
+  { code: "spm", name: "Marvel's Spider-Man", releasedAt: "2025-09-26" },
+  { code: "fin", name: "Final Fantasy", releasedAt: "2025-06-13" },
+  { code: "fic", name: "Commander: Final Fantasy", releasedAt: "2025-06-13" },
+  { code: "fca", name: "Final Fantasy: Through the Ages", releasedAt: "2025-06-13" },
+  { code: "acr", name: "Assassin's Creed", releasedAt: "2024-07-05" },
+  { code: "pip", name: "Fallout", releasedAt: "2024-03-08" },
+  { code: "who", name: "Doctor Who", releasedAt: "2023-10-13" },
+  { code: "ltr", name: "The Lord of the Rings: Tales of Middle-earth", releasedAt: "2023-06-23" },
+  { code: "ltc", name: "Commander: The Lord of the Rings: Tales of Middle-earth", releasedAt: "2023-06-23" },
+  { code: "ltc", name: "The Lord of the Rings Commander", releasedAt: "2023-06-23" },
+  { code: "40k", name: "Warhammer 40,000 Commander", releasedAt: "2022-10-07" },
+  { code: "bot", name: "Transformers", releasedAt: "2022-11-18" },
+  { code: "rex", name: "Jurassic World Collection", releasedAt: "2023-11-17" },
+  { code: "sld", name: "Secret Lair Universes Beyond", releasedAt: "2020-10-04" },
+];
 
 export async function GET() {
-  try {
-    const today = new Date().toISOString().slice(0, 10);
-    const cards = (await fetchAllUniversesBeyondPrints()).filter(
-      (card) => !card.released_at || card.released_at <= today,
-    );
-    const sets = new Map<string, UbSet>();
-
-    for (const card of cards) {
-      const current = sets.get(card.set);
-
-      if (!current) {
-        sets.set(card.set, {
-          code: card.set,
-          name: card.set_name,
-          cardCount: 1,
-          releasedAt: card.released_at ?? "",
-        });
-        continue;
+  const today = new Date().toISOString().slice(0, 10);
+  const seen = new Set<string>();
+  const data = UNIVERSes_BEYOND_SETS
+    .filter((set) => set.releasedAt <= today)
+    .filter((set) => {
+      if (seen.has(set.code)) {
+        return false;
       }
 
-      current.cardCount += 1;
-      if ((card.released_at ?? "") > current.releasedAt) {
-        current.releasedAt = card.released_at ?? current.releasedAt;
-      }
-    }
+      seen.add(set.code);
+      return true;
+    })
+    .map((set) => ({ ...set, cardCount: 0 }))
+    .sort((a, b) => b.releasedAt.localeCompare(a.releasedAt) || a.name.localeCompare(b.name));
 
-    return Response.json({
-      data: [...sets.values()].sort((a, b) => b.releasedAt.localeCompare(a.releasedAt) || a.name.localeCompare(b.name)),
-    });
-  } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Could not load Universes Beyond sets." },
-      { status: 500 },
-    );
-  }
+  return Response.json({ data });
 }
