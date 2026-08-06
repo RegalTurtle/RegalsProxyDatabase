@@ -57,17 +57,6 @@ function slugify(value: string) {
     .slice(0, 80);
 }
 
-function extensionFor(file: File) {
-  const byName = file.name.split(".").pop();
-
-  if (byName && byName.length <= 5 && /^[a-z0-9]+$/i.test(byName)) {
-    return byName.toLowerCase();
-  }
-
-  const byType = file.type.split("/").pop();
-  return byType ? byType.toLowerCase() : "png";
-}
-
 function signingKey(secretAccessKey: string, date: string) {
   const dateKey = hmac(`AWS4${secretAccessKey}`, date);
   const regionKey = hmac(dateKey, "auto");
@@ -134,13 +123,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "Only image uploads are allowed." }, { status: 400 });
   }
 
+  if (file.type !== "image/jpeg") {
+    return Response.json({ error: "Uploads must be converted to JPEG before storage." }, { status: 400 });
+  }
+
   const cardName = String(formData.get("cardName") ?? "proxy");
   const body = Buffer.from(await file.arrayBuffer());
   const bodyHash = hash(body);
-  const extension = extensionFor(file);
-  const key = `proxies/${slugify(cardName) || "card"}/${crypto.randomUUID()}.${extension}`;
+  const key = `proxies/${slugify(cardName) || "card"}/${crypto.randomUUID()}.jpg`;
   const host = `${config.accountId}.r2.cloudflarestorage.com`;
-  const contentType = file.type || "application/octet-stream";
+  const contentType = "image/jpeg";
   const signature = signPutObject({
     ...config,
     bodyHash,

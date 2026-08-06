@@ -295,7 +295,6 @@ button:disabled {
 }
 
 .badge,
-.mini-tag,
 .mana-pip {
   border: 1px solid #c9bdd8;
   border-radius: 3px;
@@ -308,11 +307,6 @@ button:disabled {
   padding: 0.25rem 0.42rem;
   font-size: 0.72rem;
   font-weight: 700;
-}
-
-.mini-tag {
-  padding: 0.16rem 0.42rem;
-  font-size: 0.68rem;
 }
 
 .mana-pip {

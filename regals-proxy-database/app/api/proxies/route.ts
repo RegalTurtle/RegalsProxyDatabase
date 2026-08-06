@@ -6,20 +6,13 @@ export const runtime = "nodejs";
 type ProxyPayload = {
   baseCardId?: string;
   baseCardName?: string;
-  title?: string;
-  artist?: string;
+  creator?: string;
   imageUrl?: string;
   storageKey?: string;
-  notes?: string;
-  tags?: string[];
 };
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function asTags(value: unknown) {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 function proxyProjection() {
@@ -28,12 +21,9 @@ function proxyProjection() {
     id: 1,
     baseCardId: 1,
     baseCardName: 1,
-    title: 1,
-    artist: 1,
+    creator: 1,
     imageUrl: 1,
     storageKey: 1,
-    notes: 1,
-    tags: 1,
     createdAt: 1,
     updatedAt: 1,
   };
@@ -93,12 +83,9 @@ export async function POST(request: Request) {
       id: randomUUID(),
       baseCardId,
       baseCardName,
-      title: asString(payload.title) || baseCardName,
-      artist: asString(payload.artist) || "Unknown artist",
+      creator: asString(payload.creator) || "Unknown creator",
       imageUrl,
       storageKey: asString(payload.storageKey) || undefined,
-      notes: asString(payload.notes),
-      tags: asTags(payload.tags),
       createdAt: now,
       updatedAt: now,
     };

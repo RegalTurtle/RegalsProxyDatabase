@@ -44,12 +44,10 @@ type ProxyDesign = {
   id: string;
   baseCardId: string;
   baseCardName: string;
-  title: string;
-  artist: string;
+  creator?: string;
+  artist?: string;
   imageUrl: string;
   storageKey?: string;
-  notes: string;
-  tags: string[];
   createdAt: string;
 };
 
@@ -84,6 +82,36 @@ function colorPips(card: ScryfallCard) {
   return colors;
 }
 
+async function convertImageToJpeg(file: File) {
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    bitmap.close();
+    throw new Error("Could not prepare image conversion.");
+  }
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0);
+  bitmap.close();
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", 0.9);
+  });
+
+  if (!blob) {
+    throw new Error("Could not convert image to JPEG.");
+  }
+
+  return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", {
+    type: "image/jpeg",
+  });
+}
+
 export default function CardDetail({ cardId }: { cardId: string }) {
   const [card, setCard] = useState<ScryfallCard | null>(null);
   const [proxies, setProxies] = useState<ProxyDesign[]>([]);
@@ -91,10 +119,7 @@ export default function CardDetail({ cardId }: { cardId: string }) {
   const [status, setStatus] = useState("Loading card from Scryfall...");
   const [isAdding, setIsAdding] = useState(false);
   const [form, setForm] = useState({
-    title: "",
-    artist: "",
-    notes: "",
-    tags: "",
+    creator: "",
     imageUrl: "",
   });
   const [file, setFile] = useState<File | null>(null);
@@ -162,8 +187,9 @@ export default function CardDetail({ cardId }: { cardId: string }) {
       let storageKey: string | undefined;
 
       if (file) {
+        const jpegFile = await convertImageToJpeg(file);
         const uploadBody = new FormData();
-        uploadBody.append("file", file);
+        uploadBody.append("file", jpegFile);
         uploadBody.append("cardName", card.name);
 
         const response = await fetch("/api/proxies/upload", {
@@ -192,15 +218,9 @@ export default function CardDetail({ cardId }: { cardId: string }) {
         body: JSON.stringify({
           baseCardId: card.id,
           baseCardName: card.name,
-          title: form.title.trim() || card.name,
-          artist: form.artist.trim() || "Unknown artist",
+          creator: form.creator.trim() || "Unknown creator",
           imageUrl,
           storageKey,
-          notes: form.notes.trim(),
-          tags: form.tags
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean),
         }),
       });
       const payload = (await response.json()) as {
@@ -214,9 +234,9 @@ export default function CardDetail({ cardId }: { cardId: string }) {
 
       setProxies((current) => [payload.data as ProxyDesign, ...current]);
       setSelectedProxy(payload.data);
-      setForm({ title: "", artist: "", notes: "", tags: "", imageUrl: "" });
+      setForm({ creator: "", imageUrl: "" });
       setFile(null);
-      setStatus(`Added "${payload.data.title}" to your proxy archive.`);
+      setStatus(`Added a proxy for "${payload.data.baseCardName}" to your archive.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not add that proxy.");
     } finally {
@@ -310,19 +330,10 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                       className={selectedProxy?.id === proxy.id ? "proxy-card selected" : "proxy-card"}
                       onClick={() => setSelectedProxy(proxy)}
                     >
-                      <img src={proxy.imageUrl} alt={proxy.title} className="proxy-image" loading="lazy" />
+                      <img src={proxy.imageUrl} alt={`${proxy.baseCardName} proxy`} className="proxy-image" loading="lazy" />
                       <span className="block p-3 text-left">
-                        <span className="block font-semibold">{proxy.title}</span>
-                        <span className="block text-sm opacity-75">by {proxy.artist}</span>
-                        {proxy.tags.length > 0 && (
-                          <span className="mt-2 flex flex-wrap gap-1">
-                            {proxy.tags.map((tag) => (
-                              <span key={tag} className="mini-tag">
-                                {tag}
-                              </span>
-                            ))}
-                          </span>
-                        )}
+                        <span className="block font-semibold">{proxy.baseCardName}</span>
+                        <span className="block text-sm opacity-75">by {proxy.creator ?? proxy.artist ?? "Unknown creator"}</span>
                       </span>
                     </button>
                   ))}
@@ -331,7 +342,7 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                 {selectedProxy && (
                   <div className="selected-proxy-note">
                     <div className="flex items-start justify-between gap-3">
-                      <p>{selectedProxy.notes || "No notes for this design yet."}</p>
+                      <p>{selectedProxy.baseCardName} proxy by {selectedProxy.creator ?? selectedProxy.artist ?? "Unknown creator"}.</p>
                       <button className="danger-button" onClick={() => void removeProxy(selectedProxy.id)}>
                         Remove
                       </button>
@@ -345,27 +356,9 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                 <form className="mt-5 grid gap-3" onSubmit={addProxy}>
                   <input
                     className="field"
-                    value={form.title}
-                    onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                    placeholder="Proxy title"
-                  />
-                  <input
-                    className="field"
-                    value={form.artist}
-                    onChange={(event) => setForm((current) => ({ ...current, artist: event.target.value }))}
-                    placeholder="Artist or source"
-                  />
-                  <input
-                    className="field"
-                    value={form.tags}
-                    onChange={(event) => setForm((current) => ({ ...current, tags: event.target.value }))}
-                    placeholder="Tags, comma separated"
-                  />
-                  <textarea
-                    className="field min-h-24 resize-y"
-                    value={form.notes}
-                    onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-                    placeholder="Notes"
+                    value={form.creator}
+                    onChange={(event) => setForm((current) => ({ ...current, creator: event.target.value }))}
+                    placeholder="Creator"
                   />
                   <label className="upload-box">
                     <span>{file ? file.name : "Choose proxy image for R2"}</span>
