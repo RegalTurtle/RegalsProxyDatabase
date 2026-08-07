@@ -475,9 +475,29 @@ button:disabled {
   margin-bottom: 1rem;
 }
 
+.ub-app {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.ub-app-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.ub-app-content {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+}
+
 .ub-tracker-layout {
   display: grid;
   gap: 1rem;
+  min-height: 0;
 }
 
 .ub-set-rail {
@@ -565,7 +585,7 @@ button:disabled {
   .ub-tracker-layout {
     grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
     align-items: start;
-    height: calc(100vh - 10.5rem);
+    height: 100%;
     min-height: 0;
     overflow: hidden;
   }

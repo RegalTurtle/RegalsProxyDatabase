@@ -123,8 +123,8 @@ export default function UniversesBeyond() {
   }, [loadSets]);
 
   return (
-    <main className="min-h-screen">
-      <div className="scryfall-shell min-h-screen">
+    <main className="ub-app">
+      <div className="scryfall-shell ub-app-shell">
         <header className="scryfall-header">
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-2 sm:px-6">
             <Link className="brand-mark" href="/">
@@ -142,7 +142,7 @@ export default function UniversesBeyond() {
           </div>
         </header>
 
-        <section className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6">
+        <section className="ub-app-content mx-auto w-full max-w-6xl px-4 py-5 sm:px-6">
           <div className="ub-page-heading">
             <h1 className="detail-title">Universes Beyond Tracker</h1>
             <p className="results-status">{status}</p>
