@@ -188,11 +188,6 @@ export default function UniversesBeyond() {
         </div>
 
         <section className="ub-app-content mx-auto w-full max-w-6xl px-4 py-5 sm:px-6">
-          <div className="ub-page-heading">
-            <h1 className="detail-title">Universes Beyond Tracker</h1>
-            <p className="results-status">{status}</p>
-          </div>
-
           <div className="ub-tracker-layout">
             <aside className="ub-set-rail">
               <form className="ub-add-set-form" onSubmit={addSet}>
@@ -227,6 +222,11 @@ export default function UniversesBeyond() {
             </aside>
 
             <section className="ub-card-panel">
+              <div className="ub-page-heading">
+                <h1 className="detail-title">Universes Beyond Tracker</h1>
+                <p className="results-status">{status}</p>
+              </div>
+
               {selectedSet ? (
                 <div className="ub-card-grid">
                   {sortedCards.map((card) => {
