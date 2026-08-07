@@ -288,12 +288,14 @@ export default function CardDetail({ cardId }: { cardId: string }) {
               <span className="brand-orb">R</span>
               <span>Regal&apos;s Proxy Database</span>
             </Link>
-            <Link className="nav-link" href="/">
-              Search
-            </Link>
-            <Link className="nav-link" href="/universes-beyond">
-              Universes Beyond
-            </Link>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <Link className="nav-link" href="/">
+                Search
+              </Link>
+              <Link className="nav-link" href="/universes-beyond">
+                Universes Beyond
+              </Link>
+            </div>
           </div>
         </header>
 
