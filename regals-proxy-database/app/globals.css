@@ -563,16 +563,12 @@ button:disabled {
   }
 
   .ub-tracker-layout {
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
     align-items: start;
   }
 
   .ub-set-rail {
-    position: sticky;
-    top: 5rem;
-    max-height: calc(100vh - 6rem);
-    overflow-y: auto;
-    padding-right: 0.35rem;
+    align-self: start;
   }
 
   .ub-card-grid {
