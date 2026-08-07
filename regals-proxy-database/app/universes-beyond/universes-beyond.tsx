@@ -142,7 +142,7 @@ export default function UniversesBeyond() {
           </div>
         </header>
 
-        <section className="ub-app-content mx-auto w-full max-w-6xl px-4 py-5 sm:px-6">
+        <section className="ub-app-content mx-auto w-full max-w-6xl px-4 pt-5 sm:px-6">
           <div className="ub-page-heading">
             <h1 className="detail-title">Universes Beyond Tracker</h1>
             <p className="results-status">{status}</p>
