@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ScryfallCard = {
@@ -69,6 +70,7 @@ function cardImage(card: ScryfallCard, size: "small" | "normal" | "large" = "nor
 }
 
 export default function ProxyArchive() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("name");
   const [cards, setCards] = useState<ScryfallCard[]>([]);
@@ -219,6 +221,11 @@ export default function ProxyArchive() {
         throw new Error(payload.error ?? "Scryfall search failed.");
       }
 
+      if ((payload.total_cards ?? payload.data.length) === 1 && payload.data?.[0]?.id) {
+        router.push(`/cards/${payload.data[0].id}`);
+        return;
+      }
+
       setCards(payload.data ?? []);
       setStatus(
         `${payload.total_cards ?? payload.data.length} result${
@@ -232,7 +239,7 @@ export default function ProxyArchive() {
     } finally {
       setIsSearching(false);
     }
-  }, [loadRecentCards]);
+  }, [loadRecentCards, router]);
 
   function searchCards() {
     return runSearch(query, useDefaultFilter);
