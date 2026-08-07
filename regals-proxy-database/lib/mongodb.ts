@@ -2,6 +2,7 @@ import { MongoClient } from "mongodb";
 
 let clientPromise: Promise<MongoClient> | null = null;
 let proxyIndexesPromise: Promise<string[]> | null = null;
+let ubSetIndexesPromise: Promise<string[]> | null = null;
 
 async function getClient() {
   const uri = process.env.MONGODB_URI;
@@ -31,6 +32,23 @@ export async function getProxyCollection() {
   ]);
 
   await proxyIndexesPromise;
+
+  return collection;
+}
+
+export async function getUniversesBeyondSetCollection() {
+  const client = await getClient();
+  const dbName = process.env.MONGODB_DB || "regals-proxy-database";
+  const collectionName = process.env.MONGODB_UB_SETS_COLLECTION || "universesBeyondSets";
+
+  const collection = client.db(dbName).collection(collectionName);
+
+  ubSetIndexesPromise ??= collection.createIndexes([
+    { key: { code: 1 }, name: "code_unique", unique: true },
+    { key: { releasedAt: -1, name: 1 }, name: "releasedAt_name" },
+  ]);
+
+  await ubSetIndexesPromise;
 
   return collection;
 }
