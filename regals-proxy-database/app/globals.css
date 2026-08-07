@@ -475,10 +475,25 @@ button:disabled {
   margin-bottom: 1rem;
 }
 
-.ub-set-grid {
+.ub-tracker-layout {
   display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 0.65rem;
+  gap: 1rem;
+}
+
+.ub-set-rail {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+}
+
+.ub-card-panel {
+  min-width: 0;
+}
+
+.ub-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
 }
 
 .ub-set-button {
@@ -517,8 +532,8 @@ button:disabled {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .ub-set-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .ub-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -547,8 +562,21 @@ button:disabled {
     align-items: center;
   }
 
-  .ub-set-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .ub-tracker-layout {
+    grid-template-columns: 280px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .ub-set-rail {
+    position: sticky;
+    top: 5rem;
+    max-height: calc(100vh - 6rem);
+    overflow-y: auto;
+    padding-right: 0.35rem;
+  }
+
+  .ub-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

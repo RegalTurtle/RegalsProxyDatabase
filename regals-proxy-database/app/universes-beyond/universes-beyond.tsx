@@ -148,44 +148,52 @@ export default function UniversesBeyond() {
             <p className="results-status">{status}</p>
           </div>
 
-          <div className="ub-set-grid">
-            {sets.map((set) => (
-              <button
-                key={set.code}
-                className={selectedSet?.code === set.code ? "ub-set-button active" : "ub-set-button"}
-                disabled={isLoading}
-                onClick={() => void loadCardsForSet(set)}
-              >
-                <span className="ub-set-name">{set.name}</span>
-                <span className="ub-set-meta">
-                  {set.code.toUpperCase()} · {set.releasedAt || "Unknown date"}
-                </span>
-              </button>
-            ))}
+          <div className="ub-tracker-layout">
+            <aside className="ub-set-rail">
+              {sets.map((set) => (
+                <button
+                  key={set.code}
+                  className={selectedSet?.code === set.code ? "ub-set-button active" : "ub-set-button"}
+                  disabled={isLoading}
+                  onClick={() => void loadCardsForSet(set)}
+                >
+                  <span className="ub-set-name">{set.name}</span>
+                  <span className="ub-set-meta">
+                    {set.code.toUpperCase()} · {set.releasedAt || "Unknown date"}
+                  </span>
+                </button>
+              ))}
+            </aside>
+
+            <section className="ub-card-panel">
+              {selectedSet ? (
+                <>
+                  <h2 className="section-title">{selectedSet.name}</h2>
+                  <div className="ub-card-grid mt-4">
+                    {sortedCards.map((card) => {
+                      const proxyImage = latestProxies[card.id]?.imageUrl;
+                      const image = proxyImage ?? cardImage(card);
+
+                      return (
+                        <Link key={card.id} className="card-tile" href={`/cards/${card.id}`}>
+                          <img
+                            src={image}
+                            alt={card.name}
+                            className={`card-image ${proxyImage ? "" : "proxy-missing-image"}`}
+                            loading="lazy"
+                          />
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div className="detail-panel">
+                  <h2 className="section-title">Choose a set</h2>
+                </div>
+              )}
+            </section>
           </div>
-
-          {selectedSet && (
-            <div className="mt-6">
-              <h2 className="section-title">{selectedSet.name}</h2>
-              <div className="card-grid mt-4">
-                {sortedCards.map((card) => {
-                  const proxyImage = latestProxies[card.id]?.imageUrl;
-                  const image = proxyImage ?? cardImage(card);
-
-                  return (
-                    <Link key={card.id} className="card-tile" href={`/cards/${card.id}`}>
-                      <img
-                        src={image}
-                        alt={card.name}
-                        className={`card-image ${proxyImage ? "" : "proxy-missing-image"}`}
-                        loading="lazy"
-                      />
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </section>
       </div>
     </main>

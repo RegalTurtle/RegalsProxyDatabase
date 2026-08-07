@@ -79,6 +79,16 @@ const FALLBACK_UB_SETS: UbSet[] = [
 ];
 
 function isLikelyUniversesBeyondSet(set: ScryfallSet) {
+  if (
+    set.set_type === "token" ||
+    /(^| )tokens?$/i.test(set.name) ||
+    /art series/i.test(set.name) ||
+    /front cards?/i.test(set.name) ||
+    /planes?/i.test(set.name)
+  ) {
+    return false;
+  }
+
   return (
     UB_SET_CODES.has(set.code) ||
     (set.parent_set_code ? UB_PARENT_CODES.has(set.parent_set_code) : false) ||
