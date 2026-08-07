@@ -621,7 +621,7 @@ button:disabled {
   .ub-set-rail {
     align-self: start;
     position: sticky;
-    top: 7.8rem;
+    top: 10.rem;
     max-height: calc(100vh - 8.65rem);
     overflow-y: auto;
     padding: 0.15rem 0.35rem 0.25rem 0.15rem;
