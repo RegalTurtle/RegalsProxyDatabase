@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ScryfallCard = {
@@ -69,10 +69,9 @@ function cardImage(card: ScryfallCard, size: "small" | "normal" | "large" = "nor
   );
 }
 
-export default function ProxyArchive() {
+export default function ProxyArchive({ initialQuery = "" }: { initialQuery?: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [sort, setSort] = useState("name");
   const [cards, setCards] = useState<ScryfallCard[]>([]);
   const [proxyCounts, setProxyCounts] = useState<Record<string, number>>({});
@@ -247,17 +246,14 @@ export default function ProxyArchive() {
   }
 
   useEffect(() => {
-    const queryParam = searchParams.get("q")?.trim();
-
-    if (queryParam) {
-      setQuery(queryParam);
-      void runSearch(queryParam, useDefaultFilter);
+    if (initialQuery.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void runSearch(initialQuery, useDefaultFilter);
       return;
     }
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadRecentCards();
-  }, [loadRecentCards, runSearch, searchParams, useDefaultFilter]);
+  }, [initialQuery, loadRecentCards, runSearch, useDefaultFilter]);
 
   return (
     <main className="min-h-screen">
