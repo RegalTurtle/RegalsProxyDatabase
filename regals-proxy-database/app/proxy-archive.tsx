@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type ScryfallCard = {
@@ -71,6 +71,7 @@ function cardImage(card: ScryfallCard, size: "small" | "normal" | "large" = "nor
 
 export default function ProxyArchive() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("name");
   const [cards, setCards] = useState<ScryfallCard[]>([]);
@@ -246,9 +247,17 @@ export default function ProxyArchive() {
   }
 
   useEffect(() => {
+    const queryParam = searchParams.get("q")?.trim();
+
+    if (queryParam) {
+      setQuery(queryParam);
+      void runSearch(queryParam, useDefaultFilter);
+      return;
+    }
+
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadRecentCards();
-  }, [loadRecentCards]);
+  }, [loadRecentCards, runSearch, searchParams, useDefaultFilter]);
 
   return (
     <main className="min-h-screen">

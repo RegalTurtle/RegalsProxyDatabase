@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { DragEvent, FormEvent, useCallback, useEffect, useState } from "react";
 
 type ScryfallCard = {
@@ -49,6 +50,12 @@ type ProxyDesign = {
   imageUrl: string;
   storageKey?: string;
   createdAt: string;
+};
+
+type SearchResponse = {
+  data?: ScryfallCard[];
+  total_cards?: number;
+  error?: string;
 };
 
 function cardImage(card: ScryfallCard, size: "small" | "normal" | "large" = "normal") {
@@ -113,11 +120,14 @@ async function convertImageToJpeg(file: File) {
 }
 
 export default function CardDetail({ cardId }: { cardId: string }) {
+  const router = useRouter();
   const [card, setCard] = useState<ScryfallCard | null>(null);
   const [proxies, setProxies] = useState<ProxyDesign[]>([]);
   const [selectedProxy, setSelectedProxy] = useState<ProxyDesign | null>(null);
   const [status, setStatus] = useState("Loading card from Scryfall...");
   const [isAdding, setIsAdding] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const [form, setForm] = useState({
     creator: "",
     imageUrl: "",
@@ -279,23 +289,74 @@ export default function CardDetail({ cardId }: { cardId: string }) {
     setStatus("");
   }
 
+  async function searchFromCardPage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
+      router.push("/");
+      return;
+    }
+
+    setIsSearching(true);
+    setStatus("Searching Scryfall...");
+
+    try {
+      const params = new URLSearchParams({
+        q: trimmed,
+        unique: "cards",
+        order: "name",
+      });
+      const response = await fetch(`/api/scryfall/search?${params.toString()}`);
+      const payload = (await response.json()) as SearchResponse;
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Scryfall search failed.");
+      }
+
+      if ((payload.total_cards ?? payload.data?.length ?? 0) === 1 && payload.data?.[0]?.id) {
+        router.push(`/cards/${payload.data[0].id}`);
+        return;
+      }
+
+      router.push(`/?q=${encodeURIComponent(trimmed)}`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Scryfall search failed.");
+    } finally {
+      setIsSearching(false);
+    }
+  }
+
   return (
     <main className="min-h-screen">
       <div className="scryfall-shell min-h-screen">
         <header className="scryfall-header">
-          <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-2 sm:px-6">
-            <Link className="brand-mark" href="/">
-              <span className="brand-orb">R</span>
-              <span>Regal&apos;s Proxy Database</span>
-            </Link>
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <Link className="nav-link" href="/">
-                Search
+          <div className="mx-auto grid w-full max-w-6xl gap-3 px-4 py-2 sm:px-6">
+            <div className="flex items-center justify-between gap-4">
+              <Link className="brand-mark" href="/">
+                <span className="brand-orb">R</span>
+                <span>Regal&apos;s Proxy Database</span>
               </Link>
-              <Link className="nav-link" href="/universes-beyond">
-                Universes Beyond
-              </Link>
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <Link className="nav-link" href="/">
+                  Search
+                </Link>
+                <Link className="nav-link" href="/universes-beyond">
+                  Universes Beyond
+                </Link>
+              </div>
             </div>
+            <form className="scryfall-search" onSubmit={searchFromCardPage}>
+              <input
+                className="search-input"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder='Search for Magic cards...'
+              />
+              <button className="primary-button" disabled={isSearching}>
+                {isSearching ? "Searching" : "Search"}
+              </button>
+            </form>
           </div>
         </header>
 
