@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { loadProxySummaries, type LatestProxyByCard } from "@/lib/proxy-summary";
 
 type ScryfallCard = {
   id: string;
@@ -54,8 +55,6 @@ type RecentProxyCard = {
   baseCardName: string;
   latestProxyAt: string;
 };
-
-type LatestProxyByCard = Record<string, { imageUrl?: string; createdAt?: string }>;
 
 const DEFAULT_SCRYFALL_FILTER = "in:paper legal:edh";
 
@@ -116,22 +115,11 @@ export default function ProxyArchive({ initialQuery = "" }: { initialQuery?: str
     }
 
     const controller = new AbortController();
-    const cardIds = cards.map((card) => card.id).join(",");
+    const cardIds = cards.map((card) => card.id);
 
     async function loadCounts() {
       try {
-        const response = await fetch(`/api/proxies?cardIds=${encodeURIComponent(cardIds)}`, {
-          signal: controller.signal,
-        });
-        const payload = (await response.json()) as {
-          counts?: Record<string, number>;
-          latestProxies?: LatestProxyByCard;
-          error?: string;
-        };
-
-        if (!response.ok) {
-          throw new Error(payload.error ?? "Could not load proxy counts.");
-        }
+        const payload = await loadProxySummaries(cardIds, controller.signal);
 
         setProxyCounts(payload.counts ?? {});
         setLatestProxies(payload.latestProxies ?? {});

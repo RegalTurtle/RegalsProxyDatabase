@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { loadProxySummaries, type LatestProxyByCard } from "@/lib/proxy-summary";
 
 type UbSet = {
   code: string;
@@ -27,8 +28,6 @@ type ScryfallCard = {
     };
   }[];
 };
-
-type LatestProxyByCard = Record<string, { imageUrl?: string; createdAt?: string }>;
 
 function cardImage(card: ScryfallCard) {
   return card.image_uris?.normal ?? card.card_faces?.[0]?.image_uris?.normal ?? "";
@@ -97,17 +96,7 @@ export default function UniversesBeyond() {
       setStatus(`${nextCards.length} Universes Beyond card${nextCards.length === 1 ? "" : "s"} in ${set.name}.`);
 
       if (nextCards.length) {
-        const cardIds = nextCards.map((card) => card.id).join(",");
-        const proxyResponse = await fetch(`/api/proxies?cardIds=${encodeURIComponent(cardIds)}`);
-        const proxyPayload = (await proxyResponse.json()) as {
-          latestProxies?: LatestProxyByCard;
-          error?: string;
-        };
-
-        if (!proxyResponse.ok) {
-          throw new Error(proxyPayload.error ?? "Could not load proxy images.");
-        }
-
+        const proxyPayload = await loadProxySummaries(nextCards.map((card) => card.id));
         setLatestProxies(proxyPayload.latestProxies ?? {});
       }
     } catch (error) {
