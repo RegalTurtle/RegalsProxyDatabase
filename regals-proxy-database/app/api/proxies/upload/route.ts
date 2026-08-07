@@ -100,68 +100,75 @@ function signPutObject({
 }
 
 export async function POST(request: Request) {
-  const config = getR2Config();
+  try {
+    const config = getR2Config();
 
-  if (!config) {
-    return Response.json(
-      {
-        error:
-          "R2 is not configured. Add R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, and optionally R2_PUBLIC_URL.",
+    if (!config) {
+      return Response.json(
+        {
+          error:
+            "R2 is not configured. Add R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, and optionally R2_PUBLIC_URL.",
+        },
+        { status: 501 },
+      );
+    }
+
+    const formData = await request.formData();
+    const file = formData.get("file");
+
+    if (!(file instanceof File)) {
+      return Response.json({ error: "Upload requires an image file." }, { status: 400 });
+    }
+
+    if (!file.type.startsWith("image/")) {
+      return Response.json({ error: "Only image uploads are allowed." }, { status: 400 });
+    }
+
+    if (file.type !== "image/jpeg") {
+      return Response.json({ error: "Uploads must be converted to JPEG before storage." }, { status: 400 });
+    }
+
+    const cardName = String(formData.get("cardName") ?? "proxy");
+    const body = Buffer.from(await file.arrayBuffer());
+    const bodyHash = hash(body);
+    const key = `proxies/${slugify(cardName) || "card"}/${crypto.randomUUID()}.jpg`;
+    const host = `${config.accountId}.r2.cloudflarestorage.com`;
+    const contentType = "image/jpeg";
+    const signature = signPutObject({
+      ...config,
+      bodyHash,
+      contentType,
+      host,
+      key,
+    });
+
+    const uploadUrl = `https://${host}/${config.bucket}/${encodeKey(key)}`;
+    const response = await fetch(uploadUrl, {
+      method: "PUT",
+      body,
+      headers: {
+        Authorization: signature.authorization,
+        "Content-Type": contentType,
+        "X-Amz-Content-Sha256": bodyHash,
+        "X-Amz-Date": signature.date,
       },
-      { status: 501 },
+    });
+
+    if (!response.ok) {
+      const message = await response.text();
+      return Response.json({ error: `R2 upload failed: ${message || response.statusText}` }, { status: 502 });
+    }
+
+    const publicBase = config.publicUrl?.replace(/\/+$/, "") ?? `https://${host}/${config.bucket}`;
+
+    return Response.json({
+      key,
+      imageUrl: `${publicBase}/${encodeKey(key)}`,
+    });
+  } catch (error) {
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Unexpected upload failure." },
+      { status: 500 },
     );
   }
-
-  const formData = await request.formData();
-  const file = formData.get("file");
-
-  if (!(file instanceof File)) {
-    return Response.json({ error: "Upload requires an image file." }, { status: 400 });
-  }
-
-  if (!file.type.startsWith("image/")) {
-    return Response.json({ error: "Only image uploads are allowed." }, { status: 400 });
-  }
-
-  if (file.type !== "image/jpeg") {
-    return Response.json({ error: "Uploads must be converted to JPEG before storage." }, { status: 400 });
-  }
-
-  const cardName = String(formData.get("cardName") ?? "proxy");
-  const body = Buffer.from(await file.arrayBuffer());
-  const bodyHash = hash(body);
-  const key = `proxies/${slugify(cardName) || "card"}/${crypto.randomUUID()}.jpg`;
-  const host = `${config.accountId}.r2.cloudflarestorage.com`;
-  const contentType = "image/jpeg";
-  const signature = signPutObject({
-    ...config,
-    bodyHash,
-    contentType,
-    host,
-    key,
-  });
-
-  const uploadUrl = `https://${host}/${config.bucket}/${encodeKey(key)}`;
-  const response = await fetch(uploadUrl, {
-    method: "PUT",
-    body,
-    headers: {
-      Authorization: signature.authorization,
-      "Content-Type": contentType,
-      "X-Amz-Content-Sha256": bodyHash,
-      "X-Amz-Date": signature.date,
-    },
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    return Response.json({ error: `R2 upload failed: ${message || response.statusText}` }, { status: 502 });
-  }
-
-  const publicBase = config.publicUrl?.replace(/\/+$/, "") ?? `https://${host}/${config.bucket}`;
-
-  return Response.json({
-    key,
-    imageUrl: `${publicBase}/${encodeKey(key)}`,
-  });
 }

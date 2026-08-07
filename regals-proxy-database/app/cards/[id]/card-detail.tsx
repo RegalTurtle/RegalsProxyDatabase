@@ -58,6 +58,20 @@ type SearchResponse = {
   error?: string;
 };
 
+async function readJsonResponse<T>(response: Response): Promise<T & { error?: string }> {
+  const text = await response.text();
+
+  if (!text) {
+    return { error: `${response.status} ${response.statusText || "Empty response"}` } as T & { error?: string };
+  }
+
+  try {
+    return JSON.parse(text) as T & { error?: string };
+  } catch {
+    return { error: text } as T & { error?: string };
+  }
+}
+
 function cardImage(card: ScryfallCard, size: "small" | "normal" | "large" = "normal") {
   return (
     card.image_uris?.[size] ??
@@ -207,11 +221,10 @@ export default function CardDetail({ cardId }: { cardId: string }) {
           method: "POST",
           body: uploadBody,
         });
-        const payload = (await response.json()) as {
+        const payload = await readJsonResponse<{
           imageUrl?: string;
           key?: string;
-          error?: string;
-        };
+        }>(response);
 
         if (!response.ok || !payload.imageUrl) {
           throw new Error(payload.error ?? "R2 upload failed.");
