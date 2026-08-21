@@ -7,12 +7,18 @@ type ProxyPayload = {
   baseCardId?: string;
   baseCardName?: string;
   creator?: string;
+  artist?: string;
   imageUrl?: string;
   storageKey?: string;
+  orderedIds?: string[];
 };
 
 function asString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function asSearchRegex(value: string) {
+  return new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 }
 
 function proxyProjection() {
@@ -22,10 +28,12 @@ function proxyProjection() {
     baseCardId: 1,
     baseCardName: 1,
     creator: 1,
+    artist: 1,
     imageUrl: 1,
     storageKey: 1,
     createdAt: 1,
     updatedAt: 1,
+    displayOrder: 1,
   };
 }
 
@@ -65,7 +73,7 @@ export async function GET(request: Request) {
       const counts = await collection
         .aggregate([
           { $match: { baseCardId: { $in: ids } } },
-          { $sort: { createdAt: -1 } },
+          { $sort: { displayOrder: 1, createdAt: 1 } },
           {
             $group: {
               _id: "$baseCardId",
@@ -94,8 +102,14 @@ export async function GET(request: Request) {
     }
 
     const cardId = url.searchParams.get("cardId")?.trim();
-    const filter = cardId ? { baseCardId: cardId } : {};
-    const data = await collection.find(filter).project(proxyProjection()).sort({ createdAt: -1 }).toArray();
+    const proxyCreator = url.searchParams.get("proxyCreator")?.trim();
+    const proxyArtist = url.searchParams.get("proxyArtist")?.trim();
+    const filter = {
+      ...(cardId ? { baseCardId: cardId } : {}),
+      ...(proxyCreator ? { creator: asSearchRegex(proxyCreator) } : {}),
+      ...(proxyArtist ? { artist: asSearchRegex(proxyArtist) } : {}),
+    };
+    const data = await collection.find(filter).project(proxyProjection()).sort({ displayOrder: 1, createdAt: 1 }).toArray();
 
     return Response.json({ data });
   } catch (error) {
@@ -115,15 +129,20 @@ export async function POST(request: Request) {
     }
 
     const now = new Date().toISOString();
+    const lastProxy = await getProxyCollection().then((collection) =>
+      collection.find({ baseCardId }).sort({ displayOrder: -1, createdAt: -1 }).limit(1).next(),
+    );
     const proxy = {
       id: randomUUID(),
       baseCardId,
       baseCardName,
       creator: asString(payload.creator) || "Unknown creator",
+      artist: asString(payload.artist) || "Unknown artist",
       imageUrl,
       storageKey: asString(payload.storageKey) || undefined,
       createdAt: now,
       updatedAt: now,
+      displayOrder: typeof lastProxy?.displayOrder === "number" ? lastProxy.displayOrder + 1 : undefined,
     };
 
     const collection = await getProxyCollection();
@@ -132,6 +151,63 @@ export async function POST(request: Request) {
     return Response.json({ data: proxy }, { status: 201 });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Could not save proxy." }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const id = url.searchParams.get("id")?.trim();
+    const cardId = url.searchParams.get("cardId")?.trim();
+    const payload = (await request.json()) as ProxyPayload;
+
+    if (payload.orderedIds) {
+      if (!cardId) {
+        return Response.json({ error: "Card id is required when saving proxy order." }, { status: 400 });
+      }
+
+      if (!payload.orderedIds.length || payload.orderedIds.some((proxyId) => !asString(proxyId))) {
+        return Response.json({ error: "A non-empty ordered proxy id list is required." }, { status: 400 });
+      }
+
+      const collection = await getProxyCollection();
+      await Promise.all(
+        payload.orderedIds.map((proxyId, displayOrder) =>
+          collection.updateOne(
+            { id: proxyId, baseCardId: cardId },
+            { $set: { displayOrder, updatedAt: new Date().toISOString() } },
+          ),
+        ),
+      );
+
+      return Response.json({ ok: true });
+    }
+
+    if (!id) {
+      return Response.json({ error: "Proxy id is required." }, { status: 400 });
+    }
+
+    const creator = asString(payload.creator);
+    const artist = asString(payload.artist);
+
+    if (!creator || !artist) {
+      return Response.json({ error: "Creator and artist are required." }, { status: 400 });
+    }
+
+    const collection = await getProxyCollection();
+    const result = await collection.findOneAndUpdate(
+      { id },
+      { $set: { creator, artist, updatedAt: new Date().toISOString() } },
+      { returnDocument: "after", projection: proxyProjection() },
+    );
+
+    if (!result) {
+      return Response.json({ error: "Proxy not found." }, { status: 404 });
+    }
+
+    return Response.json({ data: result });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Could not update proxy." }, { status: 500 });
   }
 }
 

@@ -50,6 +50,7 @@ type ProxyDesign = {
   imageUrl: string;
   storageKey?: string;
   createdAt: string;
+  displayOrder?: number;
 };
 
 type SearchResponse = {
@@ -144,10 +145,15 @@ export default function CardDetail({ cardId }: { cardId: string }) {
   const [isSearching, setIsSearching] = useState(false);
   const [form, setForm] = useState({
     creator: "",
+    artist: "",
     imageUrl: "",
   });
+  const [editForm, setEditForm] = useState({ creator: "", artist: "" });
   const [file, setFile] = useState<File | null>(null);
   const [isDraggingUpload, setIsDraggingUpload] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [draggedProxyId, setDraggedProxyId] = useState<string | null>(null);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   const loadCard = useCallback(async () => {
     setStatus("Loading card from Scryfall...");
@@ -243,6 +249,7 @@ export default function CardDetail({ cardId }: { cardId: string }) {
           baseCardId: card.id,
           baseCardName: card.name,
           creator: form.creator.trim() || "Unknown creator",
+          artist: form.artist.trim() || "Unknown artist",
           imageUrl,
           storageKey,
         }),
@@ -258,13 +265,90 @@ export default function CardDetail({ cardId }: { cardId: string }) {
 
       setProxies((current) => [payload.data as ProxyDesign, ...current]);
       setSelectedProxy(payload.data);
-      setForm({ creator: "", imageUrl: "" });
+      setEditForm({
+        creator: payload.data.creator ?? "Unknown creator",
+        artist: payload.data.artist ?? "Unknown artist",
+      });
+      setForm({ creator: "", artist: "", imageUrl: "" });
       setFile(null);
       setStatus(`Added a proxy for "${payload.data.baseCardName}" to your archive.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not add that proxy.");
     } finally {
       setIsAdding(false);
+    }
+  }
+
+  async function updateProxy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedProxy) {
+      return;
+    }
+
+    setIsSavingEdit(true);
+
+    try {
+      const response = await fetch(`/api/proxies?id=${encodeURIComponent(selectedProxy.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      const payload = (await response.json()) as { data?: ProxyDesign; error?: string };
+
+      if (!response.ok || !payload.data) {
+        throw new Error(payload.error ?? "Could not update proxy.");
+      }
+
+      const updatedProxy = payload.data;
+      setProxies((current) => current.map((proxy) => (proxy.id === updatedProxy.id ? updatedProxy : proxy)));
+      setSelectedProxy(updatedProxy);
+      setStatus("Updated proxy credits.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update proxy.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
+
+  async function reorderProxy(targetProxyId: string) {
+    if (!draggedProxyId || draggedProxyId === targetProxyId) {
+      return;
+    }
+
+    const sourceIndex = proxies.findIndex((proxy) => proxy.id === draggedProxyId);
+    const targetIndex = proxies.findIndex((proxy) => proxy.id === targetProxyId);
+
+    if (sourceIndex < 0 || targetIndex < 0) {
+      return;
+    }
+
+    const previousProxies = proxies;
+    const nextProxies = [...proxies];
+    const [movedProxy] = nextProxies.splice(sourceIndex, 1);
+    nextProxies.splice(targetIndex, 0, movedProxy);
+    setProxies(nextProxies);
+    setIsSavingOrder(true);
+
+    try {
+      const response = await fetch(`/api/proxies?cardId=${encodeURIComponent(cardId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds: nextProxies.map((proxy) => proxy.id) }),
+      });
+      const payload = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not save proxy order.");
+      }
+
+      setStatus("Saved proxy order.");
+    } catch (error) {
+      setProxies(previousProxies);
+      setStatus(error instanceof Error ? error.message : "Could not save proxy order.");
+    } finally {
+      setIsSavingOrder(false);
+      setDraggedProxyId(null);
     }
   }
 
@@ -424,13 +508,30 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                   {proxies.map((proxy) => (
                     <button
                       key={proxy.id}
+                      type="button"
+                      draggable
                       className={selectedProxy?.id === proxy.id ? "proxy-card selected" : "proxy-card"}
-                      onClick={() => setSelectedProxy(proxy)}
+                      onDragStart={() => setDraggedProxyId(proxy.id)}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        void reorderProxy(proxy.id);
+                      }}
+                      onDragEnd={() => setDraggedProxyId(null)}
+                      onClick={() => {
+                        setSelectedProxy(proxy);
+                        setEditForm({
+                          creator: proxy.creator ?? "Unknown creator",
+                          artist: proxy.artist ?? "Unknown artist",
+                        });
+                      }}
                     >
                       <img src={proxy.imageUrl} alt={`${proxy.baseCardName} proxy`} className="proxy-image" loading="lazy" />
                       <span className="block p-3 text-left">
                         <span className="block font-semibold">{proxy.baseCardName}</span>
-                        <span className="block text-sm opacity-75">by {proxy.creator ?? proxy.artist ?? "Unknown creator"}</span>
+                        <span className="block text-sm opacity-75">
+                          by {proxy.creator ?? "Unknown creator"}; art by {proxy.artist ?? "Unknown artist"}
+                        </span>
                       </span>
                     </button>
                   ))}
@@ -439,7 +540,9 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                 {selectedProxy && (
                   <div className="selected-proxy-note">
                     <div className="flex items-start justify-between gap-3">
-                      <p>{selectedProxy.baseCardName} proxy by {selectedProxy.creator ?? selectedProxy.artist ?? "Unknown creator"}.</p>
+                      <p>
+                        {selectedProxy.baseCardName} proxy by {selectedProxy.creator ?? "Unknown creator"}; art by {selectedProxy.artist ?? "Unknown artist"}.
+                      </p>
                       <button className="danger-button" onClick={() => void removeProxy(selectedProxy.id)}>
                         Remove
                       </button>
@@ -447,7 +550,34 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                     {selectedProxy.storageKey && (
                       <p className="mt-2 break-all text-xs opacity-70">R2 key: {selectedProxy.storageKey}</p>
                     )}
+                    <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={updateProxy}>
+                      <input
+                        className="field"
+                        value={editForm.creator}
+                        onChange={(event) => setEditForm((current) => ({ ...current, creator: event.target.value }))}
+                        placeholder="Creator"
+                        aria-label="Creator"
+                        required
+                      />
+                      <input
+                        className="field"
+                        value={editForm.artist}
+                        onChange={(event) => setEditForm((current) => ({ ...current, artist: event.target.value }))}
+                        placeholder="Artist"
+                        aria-label="Artist"
+                        required
+                      />
+                      <button className="primary-button sm:col-span-2" disabled={isSavingEdit}>
+                        {isSavingEdit ? "Saving" : "Save credits"}
+                      </button>
+                    </form>
                   </div>
+                )}
+
+                {proxies.length > 1 && (
+                  <p className="mt-3 text-xs opacity-70">
+                    {isSavingOrder ? "Saving proxy order..." : "Drag proxies to set the default proxy image."}
+                  </p>
                 )}
 
                 <form className="proxy-add-form" onSubmit={addProxy}>
@@ -457,6 +587,12 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                     onChange={(event) => setForm((current) => ({ ...current, creator: event.target.value }))}
                     placeholder="Creator"
                   />
+                    <input
+                      className="field"
+                      value={form.artist}
+                      onChange={(event) => setForm((current) => ({ ...current, artist: event.target.value }))}
+                      placeholder="Artist"
+                    />
                   <label
                     className={isDraggingUpload ? "upload-box dragging" : "upload-box"}
                     onDragEnter={(event) => {

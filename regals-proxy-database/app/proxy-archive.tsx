@@ -56,6 +56,10 @@ type RecentProxyCard = {
   latestProxyAt: string;
 };
 
+type ProxySearchMatch = {
+  baseCardId: string;
+};
+
 const DEFAULT_SCRYFALL_FILTER = "in:paper legal:edh";
 
 function cardImage(card: ScryfallCard, size: "small" | "normal" | "large" = "normal") {
@@ -66,6 +70,27 @@ function cardImage(card: ScryfallCard, size: "small" | "normal" | "large" = "nor
     card.card_faces?.[0]?.image_uris?.normal ??
     ""
   );
+}
+
+function parseProxySearch(query: string) {
+  const matches = [...query.matchAll(/\b(pc|proxycreator|pa|proxyartist):(?:"([^"]+)"|(\S+))/gi)];
+  let creator = "";
+  let artist = "";
+
+  for (const match of matches) {
+    const value = (match[2] ?? match[3] ?? "").trim();
+    if (match[1].toLowerCase() === "pc" || match[1].toLowerCase() === "proxycreator") {
+      creator = value;
+    } else {
+      artist = value;
+    }
+  }
+
+  return {
+    creator,
+    artist,
+    remainingQuery: query.replace(/\b(pc|proxycreator|pa|proxyartist):(?:"[^"]+"|\S+)/gi, "").replace(/\s+/g, " ").trim(),
+  };
 }
 
 export default function ProxyArchive({ initialQuery = "" }: { initialQuery?: string }) {
@@ -190,15 +215,58 @@ export default function ProxyArchive({ initialQuery = "" }: { initialQuery?: str
       return;
     }
 
+    const proxySearch = parseProxySearch(trimmed);
+    const hasProxySearch = Boolean(proxySearch.creator || proxySearch.artist);
+    const cardQuery = proxySearch.remainingQuery;
+
     setIsShowingRecent(false);
-    const scryfallQuery = shouldUseDefaultFilter ? `${trimmed} ${DEFAULT_SCRYFALL_FILTER}` : trimmed;
 
     setIsSearching(true);
     setStatus("Searching Scryfall...");
 
     try {
+      let matchingCardIds: Set<string> | undefined;
+
+      if (hasProxySearch) {
+        const proxyParams = new URLSearchParams();
+        if (proxySearch.creator) {
+          proxyParams.set("proxyCreator", proxySearch.creator);
+        }
+        if (proxySearch.artist) {
+          proxyParams.set("proxyArtist", proxySearch.artist);
+        }
+
+        const proxyResponse = await fetch(`/api/proxies?${proxyParams.toString()}`);
+        const proxyPayload = (await proxyResponse.json()) as { data?: ProxySearchMatch[]; error?: string };
+
+        if (!proxyResponse.ok) {
+          throw new Error(proxyPayload.error ?? "Could not search proxy credits.");
+        }
+
+        matchingCardIds = new Set((proxyPayload.data ?? []).map((proxy) => proxy.baseCardId));
+      }
+
+      if (!cardQuery && matchingCardIds) {
+        const hydratedCards = await Promise.all(
+          [...matchingCardIds].map(async (proxyCardId) => {
+            const cardResponse = await fetch(`/api/scryfall/cards/${proxyCardId}`);
+            const cardPayload = (await cardResponse.json()) as ScryfallCard & { error?: string };
+
+            if (!cardResponse.ok) {
+              throw new Error(cardPayload.error ?? "Could not load a matching card.");
+            }
+
+            return cardPayload;
+          }),
+        );
+
+        setCards(hydratedCards);
+        setStatus(`${hydratedCards.length} card${hydratedCards.length === 1 ? "" : "s"} with matching proxy credits.`);
+        return;
+      }
+
       const params = new URLSearchParams({
-        q: scryfallQuery,
+        q: shouldUseDefaultFilter ? `${cardQuery} ${DEFAULT_SCRYFALL_FILTER}` : cardQuery,
         unique: "cards",
         order: "name",
       });
@@ -209,17 +277,21 @@ export default function ProxyArchive({ initialQuery = "" }: { initialQuery?: str
         throw new Error(payload.error ?? "Scryfall search failed.");
       }
 
-      if ((payload.total_cards ?? payload.data.length) === 1 && payload.data?.[0]?.id) {
-        router.push(`/cards/${payload.data[0].id}`);
+      const filteredCards = matchingCardIds
+        ? (payload.data ?? []).filter((card) => matchingCardIds?.has(card.id))
+        : payload.data ?? [];
+
+      if (filteredCards.length === 1 && filteredCards[0]?.id) {
+        router.push(`/cards/${filteredCards[0].id}`);
         return;
       }
 
-      setCards(payload.data ?? []);
+      setCards(filteredCards);
       setStatus(
-        `${payload.total_cards ?? payload.data.length} result${
-          (payload.total_cards ?? payload.data.length) === 1 ? "" : "s"
-        } from Scryfall${payload.has_more ? " - first page shown" : ""}${
-          shouldUseDefaultFilter ? ` with ${DEFAULT_SCRYFALL_FILTER}` : ""
+        `${filteredCards.length} result${filteredCards.length === 1 ? "" : "s"}${
+          hasProxySearch ? " matching proxy credits" : " from Scryfall"
+        }${payload.has_more ? " - first page shown" : ""}${
+          shouldUseDefaultFilter && cardQuery ? ` with ${DEFAULT_SCRYFALL_FILTER}` : ""
         }.`,
       );
     } catch (error) {
