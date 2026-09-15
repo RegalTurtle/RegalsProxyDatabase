@@ -68,7 +68,7 @@ function cardImage(card: ScryfallCard, size: "small" | "normal" | "large" = "nor
   );
 }
 
-export default function ProxyArchive() {
+export default function ProxyArchive({ initialImageSource }: { initialImageSource: "original" | "proxy" }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("name");
   const [cards, setCards] = useState<ScryfallCard[]>([]);
@@ -82,7 +82,7 @@ export default function ProxyArchive() {
   const [showOnlyWithProxies, setShowOnlyWithProxies] = useState(false);
   const [useDefaultFilter, setUseDefaultFilter] = useState(true);
   const [isShowingRecent, setIsShowingRecent] = useState(true);
-  const [imageSource, setImageSource] = useState<"original" | "proxy">("original");
+  const [imageSource, setImageSource] = useState<"original" | "proxy">(initialImageSource);
 
   const visibleCards = useMemo(() => {
     const withFilter = showOnlyWithProxies
@@ -329,7 +329,11 @@ export default function ProxyArchive() {
                   <button
                     key={source}
                     className={imageSource === source ? "toggle active" : "toggle"}
-                    onClick={() => setImageSource(source)}
+                    aria-pressed={imageSource === source}
+                    onClick={() => {
+                      setImageSource(source);
+                      document.cookie = `proxy-image-source=${source}; Path=/; Max-Age=31536000; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
+                    }}
                   >
                     {source === "original" ? "Original" : "Proxy"}
                   </button>
