@@ -1,6 +1,8 @@
 import { MongoClient } from "mongodb";
 
 let clientPromise: Promise<MongoClient> | null = null;
+let proxyIndexesPromise: Promise<string[]> | null = null;
+let ubSetIndexesPromise: Promise<string[]> | null = null;
 
 async function getClient() {
   const uri = process.env.MONGODB_URI;
@@ -21,5 +23,32 @@ export async function getProxyCollection() {
   const dbName = process.env.MONGODB_DB || "regals-proxy-database";
   const collectionName = process.env.MONGODB_PROXIES_COLLECTION || "proxies";
 
-  return client.db(dbName).collection(collectionName);
+  const collection = client.db(dbName).collection(collectionName);
+
+  proxyIndexesPromise ??= collection.createIndexes([
+    { key: { baseCardId: 1, createdAt: -1 }, name: "baseCardId_createdAt" },
+    { key: { createdAt: -1 }, name: "createdAt" },
+    { key: { id: 1 }, name: "id_unique", unique: true },
+  ]);
+
+  await proxyIndexesPromise;
+
+  return collection;
+}
+
+export async function getUniversesBeyondSetCollection() {
+  const client = await getClient();
+  const dbName = process.env.MONGODB_DB || "regals-proxy-database";
+  const collectionName = process.env.MONGODB_UB_SETS_COLLECTION || "universesBeyondSets";
+
+  const collection = client.db(dbName).collection(collectionName);
+
+  ubSetIndexesPromise ??= collection.createIndexes([
+    { key: { code: 1 }, name: "code_unique", unique: true },
+    { key: { releasedAt: -1, name: 1 }, name: "releasedAt_name" },
+  ]);
+
+  await ubSetIndexesPromise;
+
+  return collection;
 }
