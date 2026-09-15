@@ -497,8 +497,11 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                       }}
                       onClick={() => {
                         if (suppressClick.current) return;
+                        if (selectedProxy?.id === proxy.id) {
+                          setPreviewProxy(proxy);
+                          return;
+                        }
                         setSelectedProxy(proxy);
-                        setPreviewProxy(proxy);
                         setEditForm({ creator: proxy.creator ?? "Unknown creator", artist: proxy.artist ?? "Unknown artist" });
                       }}
                     >
@@ -529,7 +532,7 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                 )}
 
                 <p className="mt-3 text-xs opacity-75" role="status">
-                  {isSavingOrder ? "Saving proxy order…" : "Drag proxies to reorder and set the default image. Click a proxy to enlarge it."}
+                  {isSavingOrder ? "Saving proxy order…" : "Drag proxies to reorder and set the default image. Click a proxy to edit its credits; click it again to enlarge it."}
                 </p>
 
                 {selectedProxy && (
