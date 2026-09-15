@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
-import { DragEvent, FormEvent, useCallback, useEffect, useState } from "react";
+import { DragEvent, FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 type ScryfallCard = {
   id: string;
@@ -116,6 +116,16 @@ export default function CardDetail({ cardId }: { cardId: string }) {
   const [card, setCard] = useState<ScryfallCard | null>(null);
   const [proxies, setProxies] = useState<ProxyDesign[]>([]);
   const [showAllProxies, setShowAllProxies] = useState(false);
+  const [previewProxy, setPreviewProxy] = useState<ProxyDesign | null>(null);
+  const previewDialog = useRef<HTMLDialogElement>(null);
+  const draggedProxy = useRef<string | null>(null);
+  const suppressClick = useRef(false);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (previewProxy) previewDialog.current?.showModal();
+  }, [previewProxy]);
   const [selectedProxy, setSelectedProxy] = useState<ProxyDesign | null>(null);
   const [status, setStatus] = useState("Loading card from Scryfall...");
   const [isAdding, setIsAdding] = useState(false);
@@ -167,6 +177,38 @@ export default function CardDetail({ cardId }: { cardId: string }) {
     void loadCard();
     void loadProxies();
   }, [loadCard, loadProxies]);
+
+  async function reorderProxy(targetId: string) {
+    const sourceId = draggedProxy.current;
+    draggedProxy.current = null;
+    setDropTarget(null);
+    if (!sourceId || sourceId === targetId || isSavingOrder) return;
+    const from = proxies.findIndex((proxy) => proxy.id === sourceId);
+    const to = proxies.findIndex((proxy) => proxy.id === targetId);
+    if (from < 0 || to < 0) return;
+    const previous = proxies;
+    const reordered = [...proxies];
+    reordered.splice(to, 0, reordered.splice(from, 1)[0]);
+    setProxies(reordered);
+    setIsSavingOrder(true);
+    try {
+      const response = await fetch("/api/proxies", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseCardId: cardId, proxyIds: reordered.map((proxy) => proxy.id) }),
+      });
+      if (!response.ok) {
+        const payload = await response.json();
+        throw new Error(payload.error ?? "Could not save proxy order.");
+      }
+      setStatus("Saved proxy order.");
+    } catch (error) {
+      setProxies(previous);
+      setStatus(error instanceof Error ? error.message : "Could not save proxy order.");
+    } finally {
+      setIsSavingOrder(false);
+    }
+  }
 
   async function addProxy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -347,9 +389,36 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                     <button
                       key={proxy.id}
                       className={selectedProxy?.id === proxy.id ? "proxy-card selected" : "proxy-card"}
-                      onClick={() => setSelectedProxy(proxy)}
+                      data-drop-target={dropTarget === proxy.id || undefined}
+                      draggable={!isSavingOrder && !isAdding}
+                      onDragStart={(event) => {
+                        draggedProxy.current = proxy.id;
+                        suppressClick.current = true;
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", proxy.id);
+                      }}
+                      onDragOver={(event) => {
+                        if (!draggedProxy.current || isSavingOrder) return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        setDropTarget(proxy.id);
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        void reorderProxy(proxy.id);
+                      }}
+                      onDragEnd={() => {
+                        draggedProxy.current = null;
+                        setDropTarget(null);
+                        setTimeout(() => { suppressClick.current = false; }, 0);
+                      }}
+                      onClick={() => {
+                        if (suppressClick.current) return;
+                        setSelectedProxy(proxy);
+                        setPreviewProxy(proxy);
+                      }}
                     >
-                      <img src={proxy.imageUrl} alt={`${proxy.baseCardName} proxy`} className="proxy-image" loading="lazy" />
+                      <img src={proxy.imageUrl} alt={`${proxy.baseCardName} proxy`} className="proxy-image" loading="lazy" draggable={false} />
                       <span className="block p-3 text-left">
                         <span className="block font-semibold">{proxy.baseCardName}</span>
                         <span className="block text-sm opacity-75">by {proxy.creator ?? proxy.artist ?? "Unknown creator"}</span>
@@ -373,11 +442,15 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                   </div>
                 )}
 
+                <p className="mt-3 text-xs opacity-75" role="status">
+                  {isSavingOrder ? "Saving proxy order…" : "Drag proxies to reorder and set the default image. Click a proxy to enlarge it."}
+                </p>
+
                 {selectedProxy && (
                   <div className="selected-proxy-note">
                     <div className="flex items-start justify-between gap-3">
                       <p>{selectedProxy.baseCardName} proxy by {selectedProxy.creator ?? selectedProxy.artist ?? "Unknown creator"}.</p>
-                      <button className="danger-button" onClick={() => void removeProxy(selectedProxy.id)}>
+                      <button className="danger-button" disabled={isSavingOrder} onClick={() => void removeProxy(selectedProxy.id)}>
                         Remove
                       </button>
                     </div>
@@ -429,7 +502,7 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                     onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))}
                     placeholder="Or paste an existing proxy image URL"
                   />
-                  <button className="primary-button" disabled={isAdding}>
+                  <button className="primary-button" disabled={isAdding || isSavingOrder}>
                     {isAdding ? "Saving" : "Add proxy"}
                   </button>
                 </form>
@@ -445,6 +518,25 @@ export default function CardDetail({ cardId }: { cardId: string }) {
           {card && status && <p className="results-status mt-4">{status}</p>}
         </section>
       </div>
+      <dialog
+        ref={previewDialog}
+        className="proxy-preview-dialog"
+        aria-label={previewProxy ? `${previewProxy.baseCardName} proxy preview` : "Proxy preview"}
+        onClose={() => setPreviewProxy(null)}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) previewDialog.current?.close();
+        }}
+      >
+        {previewProxy && (
+          <div className="proxy-preview-content">
+            <button type="button" className="secondary-button" autoFocus onClick={() => previewDialog.current?.close()}>
+              Close
+            </button>
+            <img src={previewProxy.imageUrl} alt={`${previewProxy.baseCardName} proxy`} className="proxy-preview-image" />
+            <p>{previewProxy.baseCardName} — by {previewProxy.creator ?? previewProxy.artist ?? "Unknown creator"}</p>
+          </div>
+        )}
+      </dialog>
     </main>
   );
 }

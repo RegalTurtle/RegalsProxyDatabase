@@ -65,7 +65,7 @@ export async function GET(request: Request) {
       const counts = await collection
         .aggregate([
           { $match: { baseCardId: { $in: ids } } },
-          { $sort: { createdAt: -1 } },
+          { $sort: { sortOrder: 1, createdAt: -1, id: 1 } },
           {
             $group: {
               _id: "$baseCardId",
@@ -95,7 +95,7 @@ export async function GET(request: Request) {
 
     const cardId = url.searchParams.get("cardId")?.trim();
     const filter = cardId ? { baseCardId: cardId } : {};
-    const data = await collection.find(filter).project(proxyProjection()).sort({ createdAt: -1 }).toArray();
+    const data = await collection.find(filter).project(proxyProjection()).sort({ sortOrder: 1, createdAt: -1, id: 1 }).toArray();
 
     return Response.json({ data });
   } catch (error) {
@@ -132,6 +132,36 @@ export async function POST(request: Request) {
     return Response.json({ data: proxy }, { status: 201 });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Could not save proxy." }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const payload = await request.json();
+    const baseCardId = asString(payload?.baseCardId);
+    const proxyIds: unknown = payload?.proxyIds;
+    if (!baseCardId || !Array.isArray(proxyIds) || !proxyIds.length ||
+        proxyIds.some((id) => typeof id !== "string" || !id.trim()) ||
+        new Set(proxyIds).size !== proxyIds.length) {
+      return Response.json({ error: "A card ID and unique proxy IDs are required." }, { status: 400 });
+    }
+
+    const collection = await getProxyCollection();
+    const existing = await collection.find({ baseCardId }).project({ id: 1 }).toArray();
+    const existingIds = new Set(existing.map((proxy) => proxy.id));
+    if (existing.length !== proxyIds.length || proxyIds.some((id) => !existingIds.has(id))) {
+      return Response.json({ error: "The proxy list changed. Refresh the page before reordering." }, { status: 409 });
+    }
+
+    await collection.bulkWrite(proxyIds.map((id, sortOrder) => ({
+      updateOne: {
+        filter: { id, baseCardId },
+        update: { $set: { sortOrder, updatedAt: new Date().toISOString() } },
+      },
+    })));
+    return Response.json({ ok: true });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Could not save proxy order." }, { status: 500 });
   }
 }
 

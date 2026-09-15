@@ -76,6 +76,8 @@ export default function ProxyArchive() {
   const [latestProxies, setLatestProxies] = useState<LatestProxyByCard>({});
   const [status, setStatus] = useState("Search Scryfall, then choose a card to add proxy art.");
   const [isSearching, setIsSearching] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [submittedQuery, setSubmittedQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showOnlyWithProxies, setShowOnlyWithProxies] = useState(false);
   const [useDefaultFilter, setUseDefaultFilter] = useState(true);
@@ -196,11 +198,15 @@ export default function ProxyArchive() {
     const trimmed = searchQuery.trim();
 
     if (!trimmed) {
+      setSubmittedQuery("");
       await loadRecentCards();
       return;
     }
 
     setIsShowingRecent(false);
+    setSubmittedQuery(trimmed);
+    setSearchFailed(false);
+    setCards([]);
     const scryfallQuery = shouldUseDefaultFilter ? `${trimmed} ${DEFAULT_SCRYFALL_FILTER}` : trimmed;
 
     setIsSearching(true);
@@ -213,21 +219,28 @@ export default function ProxyArchive() {
         order: "name",
       });
       const response = await fetch(`/api/scryfall/search?${params.toString()}`);
-      const payload = (await response.json()) as SearchResponse & { error?: string };
+      const payload = (await response.json()) as SearchResponse & { error?: string; details?: string };
+
+      if (response.status === 404) {
+        setCards([]);
+        setStatus("0 results from Scryfall.");
+        return;
+      }
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Scryfall search failed.");
+        throw new Error(payload.error ?? payload.details ?? "Scryfall search failed.");
       }
 
       setCards(payload.data ?? []);
       setStatus(
-        `${payload.total_cards ?? payload.data.length} result${
-          (payload.total_cards ?? payload.data.length) === 1 ? "" : "s"
+        `${payload.total_cards ?? payload.data?.length ?? 0} result${
+          (payload.total_cards ?? payload.data?.length ?? 0) === 1 ? "" : "s"
         } from Scryfall${payload.has_more ? " - first page shown" : ""}${
           shouldUseDefaultFilter ? ` with ${DEFAULT_SCRYFALL_FILTER}` : ""
         }.`,
       );
     } catch (error) {
+      setSearchFailed(true);
       setStatus(error instanceof Error ? error.message : "Something went wrong.");
     } finally {
       setIsSearching(false);
@@ -293,21 +306,24 @@ export default function ProxyArchive() {
                 <span className="toolbar-copy">as</span>
                 <button
                   className={showOnlyWithProxies ? "toggle active" : "toggle"}
+                  aria-pressed={showOnlyWithProxies}
                   onClick={() => setShowOnlyWithProxies((current) => !current)}
                 >
                   Has Proxy
                 </button>
                 <button
                   className={useDefaultFilter ? "toggle active" : "toggle"}
+                  aria-pressed={useDefaultFilter}
+                  disabled={isSearching}
                   onClick={() => {
                     const nextValue = !useDefaultFilter;
                     setUseDefaultFilter(nextValue);
-                    if (query.trim()) {
-                      void runSearch(query, nextValue);
+                    if (submittedQuery || query.trim()) {
+                      void runSearch(submittedQuery || query, nextValue);
                     }
                   }}
                 >
-                  Paper EDH
+                  Paper + EDH
                 </button>
                 {(["original", "proxy"] as const).map((source) => (
                   <button
@@ -334,6 +350,34 @@ export default function ProxyArchive() {
             </div>
 
             <p className="results-status">{status}</p>
+
+            {!isShowingRecent && !isSearching && !searchFailed && visibleCards.length === 0 && (
+              <div className="detail-panel py-10 text-center" role="status">
+                <h1 className="detail-title">No results found</h1>
+                <p className="mt-3 text-sm opacity-75">
+                  No cards match “{submittedQuery}” with your current filters. Try changing your search or turning off a filter.
+                </p>
+                <div className="mt-5 flex flex-wrap justify-center gap-3">
+                  {useDefaultFilter && (
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => {
+                        setUseDefaultFilter(false);
+                        void runSearch(submittedQuery, false);
+                      }}
+                    >
+                      Turn off Paper + EDH and search again
+                    </button>
+                  )}
+                  {showOnlyWithProxies && (
+                    <button type="button" className="secondary-button" onClick={() => setShowOnlyWithProxies(false)}>
+                      Turn off Has Proxy
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div
               className={
