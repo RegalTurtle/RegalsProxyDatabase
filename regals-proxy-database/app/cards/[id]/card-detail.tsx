@@ -115,6 +115,7 @@ async function convertImageToJpeg(file: File) {
 export default function CardDetail({ cardId }: { cardId: string }) {
   const [card, setCard] = useState<ScryfallCard | null>(null);
   const [proxies, setProxies] = useState<ProxyDesign[]>([]);
+  const [showAllProxies, setShowAllProxies] = useState(false);
   const [selectedProxy, setSelectedProxy] = useState<ProxyDesign | null>(null);
   const [status, setStatus] = useState("Loading card from Scryfall...");
   const [isAdding, setIsAdding] = useState(false);
@@ -341,8 +342,8 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                   <h2 className="section-title">Proxies ({proxies.length})</h2>
                 </div>
 
-                <div className="proxy-strip-row">
-                  {proxies.map((proxy) => (
+                <div id="proxy-gallery" className="proxy-gallery">
+                  {(showAllProxies ? proxies : proxies.slice(0, 5)).map((proxy) => (
                     <button
                       key={proxy.id}
                       className={selectedProxy?.id === proxy.id ? "proxy-card selected" : "proxy-card"}
@@ -356,6 +357,21 @@ export default function CardDetail({ cardId }: { cardId: string }) {
                     </button>
                   ))}
                 </div>
+
+                {proxies.length > 5 && (
+                  <div className="mt-3 flex justify-center">
+                    <button
+                      type="button"
+                      className="secondary-button gap-2"
+                      aria-expanded={showAllProxies}
+                      aria-controls="proxy-gallery"
+                      onClick={() => setShowAllProxies((current) => !current)}
+                    >
+                      {showAllProxies ? "Show less" : `Show more (${proxies.length - 5})`}
+                      <span aria-hidden="true">{showAllProxies ? "▴" : "▾"}</span>
+                    </button>
+                  </div>
+                )}
 
                 {selectedProxy && (
                   <div className="selected-proxy-note">

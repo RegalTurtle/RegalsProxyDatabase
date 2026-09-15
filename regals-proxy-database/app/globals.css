@@ -353,18 +353,20 @@ button:disabled {
   align-self: start;
 }
 
-.proxy-strip-row {
-  display: grid;
-  grid-auto-columns: minmax(170px, 210px);
-  grid-auto-flow: column;
+.proxy-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.9rem;
-  overflow-x: auto;
-  padding: 0.15rem 0.15rem 0.85rem;
-  scroll-snap-type: x proximity;
+  max-width: calc(850px + 3.9rem);
+  margin-inline: auto;
+  padding: 0.15rem;
 }
 
-.proxy-strip-row .proxy-card {
-  scroll-snap-align: start;
+.proxy-gallery .proxy-card {
+  flex: 0 1 170px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .proxy-add-form {
