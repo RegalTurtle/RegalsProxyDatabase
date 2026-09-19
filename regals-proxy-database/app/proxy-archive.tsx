@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadProxySummaries, type LatestProxyByCard } from "@/lib/proxy-summary";
+import { searchCardList } from "@/lib/bulk-search";
 
 type ScryfallCard = {
   id: string;
@@ -96,6 +97,10 @@ function parseProxySearch(query: string) {
 export default function ProxyArchive({ initialQuery = "", initialImageSource }: { initialQuery?: string; initialImageSource: "original" | "proxy" }) {
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
+  const [searchMode, setSearchMode] = useState<"single" | "bulk">("single");
+  const [bulkQuery, setBulkQuery] = useState("");
+  const [submittedMode, setSubmittedMode] = useState<"single" | "bulk">("single");
+  const [missingNames, setMissingNames] = useState<string[]>([]);
   const [sort, setSort] = useState("name");
   const [cards, setCards] = useState<ScryfallCard[]>([]);
   const [proxyCounts, setProxyCounts] = useState<Record<string, number>>({});
@@ -168,6 +173,9 @@ export default function ProxyArchive({ initialQuery = "", initialImageSource }: 
   const loadRecentCards = useCallback(async () => {
     setIsSearching(true);
     setIsShowingRecent(true);
+    setMissingNames([]);
+    setSubmittedMode("single");
+    setSearchFailed(false);
     setStatus("Loading recent proxy cards...");
 
     try {
@@ -224,6 +232,8 @@ export default function ProxyArchive({ initialQuery = "", initialImageSource }: 
 
     setIsShowingRecent(false);
     setSubmittedQuery(trimmed);
+    setSubmittedMode("single");
+    setMissingNames([]);
     setSearchFailed(false);
     setCards([]);
 
@@ -314,8 +324,34 @@ export default function ProxyArchive({ initialQuery = "", initialImageSource }: 
     }
   }, [loadRecentCards, router]);
 
+  async function runBulkSearch(input: string, shouldUseDefaultFilter: boolean) {
+    setIsSearching(true);
+    setIsShowingRecent(false);
+    setSearchFailed(false);
+    setSubmittedQuery(input);
+    setSubmittedMode("bulk");
+    setMissingNames([]);
+    setCards([]);
+    setStatus("Searching your card list...");
+    try {
+      const result = await searchCardList<ScryfallCard>(input, shouldUseDefaultFilter ? DEFAULT_SCRYFALL_FILTER : "");
+      setCards(result.data);
+      setMissingNames(result.missing);
+      setStatus(`${result.data.length} cards found for ${result.total} unique names${shouldUseDefaultFilter ? ` with ${DEFAULT_SCRYFALL_FILTER}` : ""}.`);
+    } catch (error) {
+      setSearchFailed(true);
+      setStatus(error instanceof Error ? error.message : "Bulk search failed.");
+    } finally {
+      setIsSearching(false);
+    }
+  }
+
+  function repeatSearch(filter: boolean) {
+    return submittedMode === "bulk" ? runBulkSearch(submittedQuery, filter) : runSearch(submittedQuery || query, filter);
+  }
+
   function searchCards() {
-    return runSearch(query, useDefaultFilter);
+    return searchMode === "bulk" ? runBulkSearch(bulkQuery, useDefaultFilter) : runSearch(query, useDefaultFilter);
   }
 
   useEffect(() => {
@@ -348,6 +384,15 @@ export default function ProxyArchive({ initialQuery = "", initialImageSource }: 
               </div>
             </div>
 
+            <div className="flex gap-2" aria-label="Search mode">
+              {(["single", "bulk"] as const).map((mode) => (
+                <button key={mode} type="button" className={searchMode === mode ? "toggle active" : "toggle"}
+                  aria-pressed={searchMode === mode} disabled={isSearching} onClick={() => setSearchMode(mode)}>
+                  {mode === "bulk" ? "Bulk Search" : "Search"}
+                </button>
+              ))}
+            </div>
+            {searchMode === "bulk" && <p id="bulk-search-help" className="text-sm">Paste one card name per line (up to 500). Quantities like 4 Sol Ring or 4x Sol Ring are optional. Duplicate names appear once.</p>}
             <form
               className="scryfall-search"
               onSubmit={(event) => {
@@ -355,14 +400,18 @@ export default function ProxyArchive({ initialQuery = "", initialImageSource }: 
                 void searchCards();
               }}
             >
-              <input
+              {searchMode === "bulk" ? (
+                <textarea className="search-input resize-y py-2" rows={6} aria-label="Card list" aria-describedby="bulk-search-help"
+                  value={bulkQuery} onChange={(event) => setBulkQuery(event.target.value)} placeholder={"Sol Ring\n1 Arcane Signet\n4x Forest"} />
+              ) : <input
+                aria-label="Search for Magic cards"
                 className="search-input"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder='Search for Magic cards... try: type:legendary o:"draw a card" commander:azorius'
-              />
-              <button className="primary-button" disabled={isSearching}>
-                {isSearching ? "Searching" : "Search"}
+              />}
+              <button className="primary-button self-start" disabled={isSearching}>
+                {isSearching ? "Searching" : searchMode === "bulk" ? "Search List" : "Search"}
               </button>
             </form>
           </div>
@@ -394,7 +443,7 @@ export default function ProxyArchive({ initialQuery = "", initialImageSource }: 
                     const nextValue = !useDefaultFilter;
                     setUseDefaultFilter(nextValue);
                     if (submittedQuery || query.trim()) {
-                      void runSearch(submittedQuery || query, nextValue);
+                      void repeatSearch(nextValue);
                     }
                   }}
                 >
@@ -428,7 +477,14 @@ export default function ProxyArchive({ initialQuery = "", initialImageSource }: 
               </div>
             </div>
 
-            <p className="results-status">{status}</p>
+            <p className="results-status" role="status">{status}</p>
+            {missingNames.length > 0 && (
+              <details className="detail-panel mb-4" open>
+                <summary>{missingNames.length} card names not found with the current filters</summary>
+                <p className="mt-2 text-sm">Check spelling or turn off Paper + EDH to include more cards.</p>
+                <ul className="mt-2 list-inside list-disc text-sm">{missingNames.map((name) => <li key={name}>{name}</li>)}</ul>
+              </details>
+            )}
 
             {!isShowingRecent && !isSearching && !searchFailed && visibleCards.length === 0 && (
               <div className="detail-panel py-10 text-center" role="status">
@@ -443,7 +499,7 @@ export default function ProxyArchive({ initialQuery = "", initialImageSource }: 
                       className="primary-button"
                       onClick={() => {
                         setUseDefaultFilter(false);
-                        void runSearch(submittedQuery, false);
+                        void repeatSearch(false);
                       }}
                     >
                       Turn off Paper + EDH and search again
