@@ -20,7 +20,9 @@ function loadRoute() {
   const exports = {};
   const mockedRequire = (name) => name === "@/lib/mongodb"
     ? { getProxyCollection: async () => collection }
-    : require(name);
+    : name === "@/lib/card-identity"
+      ? { backfillOracleIds: async () => {}, resolveOracleIds: async (ids) => new Map(ids.map((id) => [id, "oracle-" + id])) }
+      : require(name);
   new Function("exports", "require", compiled)(exports, mockedRequire);
   return { route: exports, writes };
 }
@@ -42,12 +44,12 @@ for (const [branch, body, query] of [
     assert.equal((await route.PATCH(request(body, query))).status, 200);
     assert.deepEqual(writes.map(({ updateOne }) => ({
       id: updateOne.filter.id,
-      card: updateOne.filter.baseCardId,
+      card: updateOne.filter.oracleId,
       mainOrder: updateOne.update.$set.sortOrder,
       branchOrder: updateOne.update.$set.displayOrder,
     })), [
-      { id: "b", card: "card", mainOrder: 0, branchOrder: 0 },
-      { id: "a", card: "card", mainOrder: 1, branchOrder: 1 },
+      { id: "b", card: "oracle-card", mainOrder: 0, branchOrder: 0 },
+      { id: "a", card: "oracle-card", mainOrder: 1, branchOrder: 1 },
     ]);
   });
 }

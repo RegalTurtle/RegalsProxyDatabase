@@ -23,6 +23,13 @@ MONGODB_PROXIES_COLLECTION=proxies
 Proxy images are uploaded to Cloudflare R2 through `/api/proxies/upload`.
 Proxy records are stored in MongoDB through `/api/proxies`.
 
+Proxy galleries, counts, default images, and ordering are shared across printings
+using Scryfall's `oracle_id`. The original `baseCardId` is retained for card links.
+After deployment, the proxies API automatically backfills `oracleId` on older
+records using Scryfall's collection endpoint; no image re-upload is needed.
+The first request may take longer while this runs. If Scryfall is unavailable,
+the API reports an error and retries on the next request without deleting records.
+
 ## Getting Started
 
 First, run the development server:

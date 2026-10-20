@@ -10,6 +10,7 @@ import { searchCardList } from "@/lib/bulk-search";
 
 type ScryfallCard = {
   id: string;
+  oracle_id?: string;
   name: string;
   mana_cost?: string;
   type_line: string;
@@ -58,6 +59,7 @@ type RecentProxyCard = {
 };
 
 type ProxySearchMatch = {
+  oracleId?: string;
   baseCardId: string;
 };
 
@@ -242,6 +244,7 @@ export default function ProxyArchive({ initialQuery = "", initialImageSource }: 
 
     try {
       let matchingCardIds: Set<string> | undefined;
+      let matchingOracleIds: Set<string> | undefined;
 
       if (hasProxySearch) {
         const proxyParams = new URLSearchParams();
@@ -260,6 +263,7 @@ export default function ProxyArchive({ initialQuery = "", initialImageSource }: 
         }
 
         matchingCardIds = new Set((proxyPayload.data ?? []).map((proxy) => proxy.baseCardId));
+        matchingOracleIds = new Set((proxyPayload.data ?? []).map((proxy) => proxy.oracleId).filter((id): id is string => Boolean(id)));
       }
 
       if (!cardQuery && matchingCardIds) {
@@ -276,8 +280,9 @@ export default function ProxyArchive({ initialQuery = "", initialImageSource }: 
           }),
         );
 
-        setCards(hydratedCards);
-        setStatus(`${hydratedCards.length} card${hydratedCards.length === 1 ? "" : "s"} with matching proxy credits.`);
+        const uniqueCards = [...new Map(hydratedCards.map((card) => [card.oracle_id ?? card.id, card])).values()];
+        setCards(uniqueCards);
+        setStatus(`${uniqueCards.length} card${uniqueCards.length === 1 ? "" : "s"} with matching proxy credits.`);
         return;
       }
 
@@ -300,7 +305,7 @@ export default function ProxyArchive({ initialQuery = "", initialImageSource }: 
       }
 
       const filteredCards = matchingCardIds
-        ? (payload.data ?? []).filter((card) => matchingCardIds?.has(card.id))
+        ? (payload.data ?? []).filter((card) => matchingCardIds?.has(card.id) || (card.oracle_id && matchingOracleIds?.has(card.oracle_id)))
         : payload.data ?? [];
 
       if (filteredCards.length === 1 && filteredCards[0]?.id) {

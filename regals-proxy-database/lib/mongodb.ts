@@ -26,6 +26,7 @@ export async function getProxyCollection() {
   const collection = client.db(dbName).collection(collectionName);
 
   proxyIndexesPromise ??= collection.createIndexes([
+    { key: { oracleId: 1, createdAt: -1 }, name: "oracleId_createdAt" },
     { key: { baseCardId: 1, createdAt: -1 }, name: "baseCardId_createdAt" },
     { key: { createdAt: -1 }, name: "createdAt" },
     { key: { id: 1 }, name: "id_unique", unique: true },

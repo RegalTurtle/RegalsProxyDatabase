@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getProxyCollection } from "@/lib/mongodb";
+import { backfillOracleIds, resolveOracleIds } from "@/lib/card-identity";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,7 @@ function proxyProjection() {
     _id: 0,
     id: 1,
     baseCardId: 1,
+    oracleId: 1,
     baseCardName: 1,
     creator: 1,
     artist: 1,
@@ -45,6 +47,7 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const collection = await getProxyCollection();
+    await backfillOracleIds(collection);
     const recentCards = Number(url.searchParams.get("recentCards") ?? 0);
     const cardIds = url.searchParams.get("cardIds");
 
@@ -54,7 +57,7 @@ export async function GET(request: Request) {
           { $sort: { createdAt: -1 } },
           {
             $group: {
-              _id: "$baseCardId",
+              _id: "$oracleId",
               baseCardId: { $first: "$baseCardId" },
               baseCardName: { $first: "$baseCardName" },
               latestProxyAt: { $first: "$createdAt" },
@@ -74,14 +77,15 @@ export async function GET(request: Request) {
         .split(",")
         .map((id) => id.trim())
         .filter(Boolean);
+      const identities = await resolveOracleIds(ids);
       const counts = await collection
         .aggregate([
-          { $match: { baseCardId: { $in: ids } } },
+          { $match: { oracleId: { $in: [...identities.values()] } } },
           { $addFields: { effectiveOrder } },
           { $sort: { effectiveOrder: 1, createdAt: -1, id: 1 } },
           {
             $group: {
-              _id: "$baseCardId",
+              _id: "$oracleId",
               count: { $sum: 1 },
               latestImageUrl: { $first: "$imageUrl" },
               latestProxyAt: { $first: "$createdAt" },
@@ -90,27 +94,22 @@ export async function GET(request: Request) {
         ])
         .toArray();
 
+      const byOracle = new Map(counts.map((row) => [row._id as string, row]));
       return Response.json({
-        counts: Object.fromEntries(
-          counts.map((item) => {
-            const row = item as { _id: string; count: number };
-            return [row._id, row.count];
-          }),
-        ),
-        latestProxies: Object.fromEntries(
-          counts.map((item) => {
-            const row = item as { _id: string; latestImageUrl?: string; latestProxyAt?: string };
-            return [row._id, { imageUrl: row.latestImageUrl, createdAt: row.latestProxyAt }];
-          }),
-        ),
+        counts: Object.fromEntries(ids.map((id) => [id, byOracle.get(identities.get(id)!)?.count ?? 0])),
+        latestProxies: Object.fromEntries(ids.map((id) => {
+          const row = byOracle.get(identities.get(id)!);
+          return [id, { imageUrl: row?.latestImageUrl, createdAt: row?.latestProxyAt }];
+        })),
       });
     }
 
     const cardId = url.searchParams.get("cardId")?.trim();
+    const oracleId = cardId ? (await resolveOracleIds([cardId])).get(cardId) : undefined;
     const proxyCreator = url.searchParams.get("proxyCreator")?.trim();
     const proxyArtist = url.searchParams.get("proxyArtist")?.trim();
     const filter = {
-      ...(cardId ? { baseCardId: cardId } : {}),
+      ...(oracleId ? { oracleId } : {}),
       ...(proxyCreator ? { creator: asSearchRegex(proxyCreator) } : {}),
       ...(proxyArtist ? { artist: asSearchRegex(proxyArtist) } : {}),
     };
@@ -138,10 +137,13 @@ export async function POST(request: Request) {
       return Response.json({ error: "baseCardId, baseCardName, and imageUrl are required." }, { status: 400 });
     }
 
+    const collection = await getProxyCollection();
+    await backfillOracleIds(collection);
+    const oracleId = (await resolveOracleIds([baseCardId])).get(baseCardId)!;
     const now = new Date().toISOString();
     const lastProxy = await getProxyCollection().then((collection) =>
       collection.aggregate([
-        { $match: { baseCardId } },
+        { $match: { oracleId } },
         { $addFields: { effectiveOrder } },
         { $sort: { effectiveOrder: -1 } },
         { $limit: 1 },
@@ -151,6 +153,7 @@ export async function POST(request: Request) {
       id: randomUUID(),
       baseCardId,
       baseCardName,
+      oracleId,
       creator: asString(payload.creator) || "Unknown creator",
       artist: asString(payload.artist) || "Unknown artist",
       imageUrl,
@@ -161,7 +164,6 @@ export async function POST(request: Request) {
       displayOrder: typeof lastProxy?.effectiveOrder === "number" ? lastProxy.effectiveOrder + 1 : 0,
     };
 
-    const collection = await getProxyCollection();
     await collection.insertOne(proxy);
 
     return Response.json({ data: proxy }, { status: 201 });
@@ -188,14 +190,16 @@ export async function PATCH(request: Request) {
       }
 
       const collection = await getProxyCollection();
-      const existing = await collection.find({ baseCardId: cardId }).project({ id: 1 }).toArray();
+      await backfillOracleIds(collection);
+      const oracleId = (await resolveOracleIds([cardId])).get(cardId)!;
+      const existing = await collection.find({ oracleId }).project({ id: 1 }).toArray();
       const existingIds = new Set(existing.map((proxy) => proxy.id));
       if (existing.length !== orderedIds.length || orderedIds.some((proxyId) => !existingIds.has(proxyId))) {
         return Response.json({ error: "The proxy list changed. Refresh the page before reordering." }, { status: 409 });
       }
       await collection.bulkWrite(orderedIds.map((proxyId, displayOrder) => ({
         updateOne: {
-          filter: { id: proxyId, baseCardId: cardId },
+          filter: { id: proxyId, oracleId },
           update: { $set: { displayOrder, sortOrder: displayOrder, updatedAt: new Date().toISOString() } },
         },
       })));
